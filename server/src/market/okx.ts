@@ -11,7 +11,11 @@ export class OkxError extends Error {
   }
 }
 
+export interface OkxTicker { instId: string; last: number; open24h: number; volCcy24h: number }
+
 export interface OkxClient {
+  /** 전체 시세. SPOT의 volCcy24h는 호가 화폐(USDT 등) 기준 24시간 거래대금 */
+  getTickers(instType: 'SPOT' | 'SWAP'): Promise<OkxTicker[]>;
   getCandles(instId: string, bar: Bar, limit: number): Promise<Candle[]>;
   getQuote(instId: string): Promise<Quote>;
   getFundingRate(instId: string): Promise<number | null>;
@@ -89,5 +93,10 @@ export function createOkxClient(opts: { fetchImpl?: typeof fetch } = {}): OkxCli
     },
 
     getFundingRate,
+
+    async getTickers(instType) {
+      const rows = await call<{ instId: string; last: string; open24h: string; volCcy24h: string }[]>('/api/v5/market/tickers', { instType });
+      return rows.map((r) => ({ instId: r.instId, last: num(r.last), open24h: num(r.open24h), volCcy24h: num(r.volCcy24h) }));
+    },
   };
 }

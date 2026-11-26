@@ -18,6 +18,7 @@ export function fakeOkx(over: Partial<OkxClient> = {}) {
     async getCandles(instId, bar, limit) { calls.push({ instId, bar, limit }); return series(Math.floor(Date.UTC(2026, 10, 26) / 1000), limit); },
     async getQuote(instId) { return { instrument: parseInstrumentKey(`coin:${instId}`), price: 100, changePct24h: 1, currency: 'USDT', time: 0 }; },
     async getFundingRate() { return null; },
+    async getTickers() { return []; },
     ...over,
   };
   return okx;

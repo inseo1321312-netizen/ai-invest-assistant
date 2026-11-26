@@ -59,3 +59,11 @@ describe('market data', () => {
   });
 });
 
+
+test('tickers give last, open and quote volume as numbers', async () => {
+  const f = fakeFetch({ '/api/v5/market/tickers': (url) => {
+    expect(url.searchParams.get('instType')).toBe('SPOT');
+    return ok([{ instId: 'BTC-USDT', last: '60000', open24h: '59000', volCcy24h: '900000000' }]);
+  } });
+  expect(await createOkxClient({ fetchImpl: f }).getTickers('SPOT')).toEqual([{ instId: 'BTC-USDT', last: 60000, open24h: 59000, volCcy24h: 900000000 }]);
+});

@@ -5,6 +5,9 @@ import { loadConfig } from './config.js';
 import { openDb } from './db.js';
 import { buildApp } from './app.js';
 import { createSentiment } from './market/sentiment.js';
+import { createInstrumentCatalog } from './market/catalog.js';
+import { downloadMasters } from './market/masters.js';
+import { createUpbitClient } from './market/upbit.js';
 import { createOkxClient } from './market/okx.js';
 import { createKisClient } from './market/kis.js';
 import { createMarketService } from './market/service.js';
@@ -61,6 +64,8 @@ async function main() {
   const okx = createOkxClient();
   const kis = createKisClient({ creds: config.kis, db, now });
   const market = createMarketService({ okx, kis, db, now, fx: () => getUsdKrw({ db, now }) });
+  const upbit = createUpbitClient({ fetch });
+  const instruments = createInstrumentCatalog({ now, loadMasters: () => downloadMasters(fetch), okx, upbit });
   const siwc = createSiwcTokenStore({ db, now });
   const budget = createBudget(db, now);
   const anthropic = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey, maxRetries: 0 }) : null;
@@ -94,6 +99,7 @@ async function main() {
     config, db, now, market, connected: { kis: config.kis !== null }, siwc, runAi: router.runAi,
     push, runBriefing, catchUp, settings: { router, budget }, catalog, persistence, checkClaude,
     sentiment: createSentiment({ fetch, now: Date.now }),
+    instruments,
     webDist: path.resolve(import.meta.dirname, '../../web/dist'),
   });
   startScheduler({ briefing: runBriefing });
@@ -101,6 +107,7 @@ async function main() {
   console.log(`서버 시작: 포트 ${config.port}`);
   // 깨어나자마자 밀린 작업(오늘 브리핑, 급변 확인)을 뒤에서 한다
   void catchUp();
+  void instruments.warm();
 
   // 서버가 잠들기·재시작 직전에 마지막으로 저장한다
   const shutdown = async (signal: string) => {

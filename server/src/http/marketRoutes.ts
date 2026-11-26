@@ -6,6 +6,7 @@ import type { MarketService } from '../market/service.js';
 import type { Instrument, MarketId, Quote } from '../market/types.js';
 import { BARS, instrumentKey, MARKETS, parseInstrumentKey } from '../market/types.js';
 import type { Sentiment } from '../market/sentiment.js';
+import type { InstrumentCatalog } from '../market/catalog.js';
 
 export interface Badge { opinion: string; confidence: '낮음' | '중간' | '높음'; dataTime: number; provider: 'claude' | 'gpt' }
 export type BadgeLookup = (keys: string[]) => Map<string, Badge>;
@@ -27,6 +28,7 @@ export function registerMarketRoutes(app: FastifyInstance, deps: {
   connected: { kis: boolean };
   badgeLookup?: BadgeLookup;
   sentiment?: (() => Promise<Sentiment | null>) | null;
+  instruments?: InstrumentCatalog | null;
 }) {
   const svc = deps.market;
   const badges = deps.badgeLookup ?? (() => new Map<string, Badge>());
@@ -39,9 +41,10 @@ export function registerMarketRoutes(app: FastifyInstance, deps: {
     const usdKrw = await svc.usdKrw();
     const toView = async (inst: Instrument): Promise<QuoteView> => {
       const key = instrumentKey(inst);
+      const named = { ...inst, name: inst.name ?? deps.instruments?.nameOf(key) ?? null };
       const quote = await svc.getQuote(inst).catch(() => { errors.add(`${sourceName(market)} 데이터를 가져오지 못했습니다`); return null; });
       const krwValue = quote === null ? null : quote.currency === 'KRW' ? quote.price : usdKrw === null ? null : quote.price * usdKrw;
-      return { key, instrument: inst, quote, krwValue, badge: null };
+      return { key, instrument: named, quote, krwValue, badge: null };
     };
     const favInst = svc.listWatchlist(market);
     const favKeys = new Set(favInst.map(instrumentKey));
@@ -88,7 +91,7 @@ export function registerMarketRoutes(app: FastifyInstance, deps: {
     if (!parsed.success) return reply.code(400).send({ error: '잘못된 요청입니다' });
     const inst = parseInstrumentKey(parsed.data.key);
     try {
-      return { quote: await svc.getQuote(inst) };
+      return { quote: await svc.getQuote(inst), name: deps.instruments?.nameOf(parsed.data.key) ?? null };
     } catch {
       return reply.code(502).send({ error: `${sourceName(inst.market)} 데이터를 가져오지 못했습니다` });
     }

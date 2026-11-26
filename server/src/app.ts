@@ -18,6 +18,8 @@ import type { Budget } from './ai/budget.js';
 import { registerStatic } from './static.js';
 import type { ModelCatalog } from './ai/modelCatalog.js';
 import { registerDiagnoseRoutes } from './http/diagnoseRoutes.js';
+import { registerInfoRoutes } from './http/infoRoutes.js';
+import type { InstrumentCatalog } from './market/catalog.js';
 import type { Persistence } from './persist.js';
 
 export interface AppDeps {
@@ -38,6 +40,8 @@ export interface AppDeps {
   catalog: ModelCatalog;
   persistence?: Persistence | null;
   checkClaude?: (() => Promise<void>) | null;
+  /** 종목 이름·검색(코인·한국·미국) */
+  instruments?: InstrumentCatalog | null;
   /** 코인 공포·탐욕 지수 */
   sentiment?: (() => Promise<Sentiment | null>) | null;
 }
@@ -53,5 +57,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerFeedRoutes(app, { ...deps, vapidPublicKey: deps.push.publicKey() });
   registerSettingsRoutes(app, deps);
   registerDiagnoseRoutes(app, deps);
+  registerInfoRoutes(app, deps);
   return app;
 }
