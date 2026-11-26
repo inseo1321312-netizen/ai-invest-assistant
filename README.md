@@ -8,6 +8,40 @@
 
 ---
 
+## 가장 쉬운 무료 배포: Render + Neon (아이폰 추천, 0원)
+
+서버가 15분 동안 안 쓰이면 잠들고, **앱을 열면 다시 깨어납니다(처음 30초~1분)**. 데이터는 무료 DB(Neon)에 자동으로 저장돼서 잠들어도 지워지지 않습니다. 아침 브리핑은 그날 처음 앱을 열 때 만들어집니다.
+
+### 1. Neon(무료 DB) 만들기 — 3분
+1. [neon.tech](https://neon.tech) → **Sign up** → **Continue with GitHub**.
+2. 프로젝트 이름은 아무거나, 지역은 **AWS Asia Pacific (Singapore)**.
+3. 만들어지면 **Connect** 화면에 나오는 연결 주소(`postgresql://`로 시작, 끝에 `sslmode=require`)를 복사해 메모장에 둡니다. **남에게 보여주지 마세요.**
+
+### 2. Render에 배포 — 5분
+1. 아래 버튼을 누르고 GitHub로 로그인합니다.
+
+   [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/inseo1321312-netizen/ai-invest-assistant)
+
+2. 입력칸이 한 화면에 나옵니다. 값을 붙여넣으세요(아래 "키 준비하기" 참고).
+   - `APP_PASSWORD`: 앱 비밀번호(**12자 이상**)
+   - `DATABASE_URL`: 1번에서 복사한 Neon 주소
+   - `ANTHROPIC_API_KEY`: Claude 키
+   - `OKX_...`, `KIS_...`: 있으면 넣고, 없으면 비워 둬도 됩니다(나중에 Render의 Environment에서 추가 가능)
+3. **Apply**(또는 Deploy)를 누르고 5~10분 기다리면 `https://ai-invest-assistant-xxxx.onrender.com` 같은 주소가 생깁니다.
+
+### 3. 아이폰에 설치
+1. 아이폰 **Safari**로 그 주소를 엽니다(처음엔 "서버를 깨우는 중" 화면이 잠깐 나와요).
+2. 공유 버튼 → **홈 화면에 추가**.
+3. 앱을 열고 로그인 → 설정 → **연결 점검**을 눌러 모두 초록색인지 확인합니다.
+
+### 4. ChatGPT Plus 연결 (PC에서 한 번)
+PC에서 이 저장소 폴더를 열고(처음이면 `npm install`), 아래를 실행해 ChatGPT에 로그인합니다.
+```
+npm run siwc:login -w server -- --server https://<Render 주소>
+```
+
+---
+
 ## 준비물
 
 | 항목 | 용도 |

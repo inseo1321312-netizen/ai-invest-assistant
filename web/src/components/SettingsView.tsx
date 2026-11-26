@@ -47,6 +47,19 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [siwc, setSiwc] = useState<{ connected: boolean; expiresAt: number | null } | null>(null);
   const [toast, showToast] = useToast();
+  const [diag, setDiag] = useState<{ id: string; label: string; state: string; detail: string }[] | null>(null);
+  const [diagBusy, setDiagBusy] = useState(false);
+
+  async function runDiagnose() {
+    setDiagBusy(true);
+    try {
+      setDiag((await api<{ checks: { id: string; label: string; state: string; detail: string }[] }>('/api/admin/diagnose')).checks);
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : '점검하지 못했어요');
+    } finally {
+      setDiagBusy(false);
+    }
+  }
 
   useEffect(() => {
     api<Settings>('/api/settings').then((v) => {
@@ -175,6 +188,19 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
           <button type="button" className="btn btn-primary btn-block" style={{ marginTop: 8 }} onClick={save}>설정 저장</button>
         </section>
       )}
+
+      <section className="panel">
+        <h2>연결 점검</h2>
+        <p className="small muted" style={{ marginTop: 0 }}>거래소·증권사·AI·데이터 저장이 제대로 연결됐는지 확인해요.</p>
+        <button type="button" className="btn btn-block" disabled={diagBusy} onClick={runDiagnose}>{diagBusy ? '점검 중…' : '연결 점검'}</button>
+        {diag && (
+          <ul className="diag" aria-label="연결 점검 결과">
+            {diag.map((c) => (
+              <li key={c.id} className={c.state}><i className="dot" aria-hidden="true" /><b>{c.label}</b><span>{c.detail}</span></li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="panel">
         <h2>알림과 브리핑</h2>

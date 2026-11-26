@@ -1,0 +1,40 @@
+# Render 무료 서버 설정. README의 "Render에 배포" 버튼이 이 파일을 읽는다.
+# 무료 서버는 15분 동안 안 쓰면 잠들고, 앱을 열면 다시 깨어난다(30초~1분).
+# 잠들면 디스크가 지워지므로 데이터는 DATABASE_URL(Neon)에 자동 저장·복원된다.
+services:
+  - type: web
+    name: ai-invest-assistant
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /tmp/invest
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: APP_PASSWORD
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OKX_API_KEY
+        sync: false
+      - key: OKX_API_SECRET
+        sync: false
+      - key: OKX_API_PASSPHRASE
+        sync: false
+      - key: KIS_APP_KEY
+        sync: false
+      - key: KIS_APP_SECRET
+        sync: false
+      - key: KIS_ACCOUNT_NO
+        sync: false
+      - key: KIS_ACCOUNT_PRODUCT
+        value: "01"

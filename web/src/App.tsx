@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, setUnauthorizedHandler } from './api';
+import { api, ApiError, setUnauthorizedHandler } from './api';
 import { ChatView } from './components/ChatView';
 import { FeedBanner } from './components/FeedBanner';
 import { HoldingsList } from './components/HoldingsList';
@@ -80,18 +80,48 @@ function Shell() {
   );
 }
 
+/** 무료 서버는 한동안 안 쓰면 잠든다. 깨어나는 동안 보여주는 화면 */
+function WakeScreen() {
+  return (
+    <main className="login fade-in" aria-busy="true">
+      <img className="logo" src="/icons/icon-192.png" alt="" />
+      <h1 style={{ fontSize: 22 }}>서버를 깨우는 중이에요</h1>
+      <p className="muted" style={{ margin: '4px 0 16px' }}>한동안 쓰지 않으면 서버가 잠들어요. 처음 열 때 30초~1분 정도 걸려요.</p>
+      <div className="wake-bar"><i /></div>
+    </main>
+  );
+}
+
 export default function App() {
   const [auth, setAuth] = useState<'loading' | 'in' | 'out'>('loading');
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    if (auth !== 'loading') return;
+    const t = setTimeout(() => setSlow(true), 800);
+    return () => clearTimeout(t);
+  }, [auth]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => setAuth('out'));
-    api<{ loggedIn: boolean }>('/api/me')
-      .then((r) => setAuth(r.loggedIn ? 'in' : 'out'))
-      .catch(() => setAuth('out'));
-    return () => setUnauthorizedHandler(null);
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // 서버가 깨어나는 동안에는 502/503/연결 실패가 올 수 있다: 잠시 뒤 다시 묻는다(최대 약 1분)
+    const check = (attempt: number) => {
+      api<{ loggedIn: boolean }>('/api/me')
+        .then((r) => { if (alive) setAuth(r.loggedIn ? 'in' : 'out'); })
+        .catch((e) => {
+          if (!alive) return;
+          const waking = e instanceof ApiError && [0, 502, 503, 504].includes(e.status);
+          if (waking && attempt < 20) timer = setTimeout(() => check(attempt + 1), 3000);
+          else setAuth('out');
+        });
+    };
+    check(0);
+    return () => { alive = false; clearTimeout(timer); setUnauthorizedHandler(null); };
   }, []);
 
-  if (auth === 'loading') return null;
+  if (auth === 'loading') return slow ? <WakeScreen /> : null;
   if (auth === 'out') return <LoginView onLoggedIn={() => setAuth('in')} />;
   return <Shell />;
 }
