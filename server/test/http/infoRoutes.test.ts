@@ -33,3 +33,20 @@ test('trending and market overview routes', async () => {
   expect((await app.inject({ method: 'GET', url: '/api/trending/zz', headers: { cookie } })).statusCode).toBe(400);
   expect((await app.inject({ method: 'GET', url: '/api/market-overview', headers: { cookie } })).json().items[0].label).toBe('코스피');
 });
+
+test('news and instrument info routes', async () => {
+  const seen: { q: string; range?: { from: number; to: number } }[] = [];
+  const deps = testDeps({
+    instruments: { search: async () => [], nameOf: (k: string) => (k === 'kr:005930' ? '삼성전자' : null), koreanCoinName: () => null, findKrCode: () => null, warm: async () => {} },
+    news: { search: async (q: string, range?: { from: number; to: number }) => { seen.push({ q, range }); return [{ title: '기사', url: 'https://example.com/a', source: '한경', publishedAt: 1 }]; } },
+    instrumentInfo: { get: async () => ({ stock: null, coin: null }) },
+  });
+  const app = await buildApp(deps);
+  const cookie = await loginCookie(app);
+  expect((await app.inject({ method: 'GET', url: '/api/news?key=kr:005930', headers: { cookie } })).json().items).toHaveLength(1);
+  await app.inject({ method: 'GET', url: '/api/news?key=kr:005930&from=100&to=200', headers: { cookie } });
+  expect(seen).toEqual([{ q: '삼성전자', range: undefined }, { q: '삼성전자', range: { from: 100, to: 200 } }]);
+  expect((await app.inject({ method: 'GET', url: '/api/news?key=bad', headers: { cookie } })).statusCode).toBe(400);
+  expect((await app.inject({ method: 'GET', url: '/api/instrument/info?key=kr:005930', headers: { cookie } })).json()).toEqual({ stock: null, coin: null });
+  expect((await app.inject({ method: 'GET', url: '/api/instrument/info?key=bad', headers: { cookie } })).statusCode).toBe(400);
+});

@@ -21,6 +21,8 @@ import { registerDiagnoseRoutes } from './http/diagnoseRoutes.js';
 import { registerInfoRoutes } from './http/infoRoutes.js';
 import type { InstrumentCatalog } from './market/catalog.js';
 import type { MarketOverview } from './market/overview.js';
+import type { News } from './market/news.js';
+import type { InstrumentInfo } from './market/instrumentInfo.js';
 import type { Trending } from './market/trending.js';
 import type { Persistence } from './persist.js';
 
@@ -48,6 +50,10 @@ export interface AppDeps {
   trending?: Trending | null;
   /** 오늘 시장 한눈에 */
   overview?: MarketOverview | null;
+  /** 종목 뉴스(Google 뉴스) */
+  news?: News | null;
+  /** 종목 기본 지표·선물 지표·김프 */
+  instrumentInfo?: InstrumentInfo | null;
   /** 코인 공포·탐욕 지수 */
   sentiment?: (() => Promise<Sentiment | null>) | null;
 }

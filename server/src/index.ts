@@ -10,6 +10,8 @@ import { downloadMasters } from './market/masters.js';
 import { createUpbitClient } from './market/upbit.js';
 import { createTrending } from './market/trending.js';
 import { createMarketOverview } from './market/overview.js';
+import { createNews } from './market/news.js';
+import { createInstrumentInfo } from './market/instrumentInfo.js';
 import { createOkxClient } from './market/okx.js';
 import { createKisClient } from './market/kis.js';
 import { createMarketService } from './market/service.js';
@@ -71,6 +73,8 @@ async function main() {
   const kisOrNull = config.kis ? kis : null;
   const sentiment = createSentiment({ fetch, now });
   const trending = createTrending({ okx, kis: kisOrNull, instruments, now });
+  const news = createNews({ fetch, now });
+  const instrumentInfo = createInstrumentInfo({ kis: kisOrNull, okx, upbit, fx: () => getUsdKrw({ db, now }), now });
   const overview = createMarketOverview({ kis: kisOrNull, fx: () => getUsdKrw({ db, now }), sentiment, upbit, okx, now });
   const siwc = createSiwcTokenStore({ db, now });
   const budget = createBudget(db, now);
@@ -105,7 +109,7 @@ async function main() {
     config, db, now, market, connected: { kis: config.kis !== null }, siwc, runAi: router.runAi,
     push, runBriefing, catchUp, settings: { router, budget }, catalog, persistence, checkClaude,
     sentiment,
-    instruments, trending, overview,
+    instruments, trending, overview, news, instrumentInfo,
     webDist: path.resolve(import.meta.dirname, '../../web/dist'),
   });
   startScheduler({ briefing: runBriefing });

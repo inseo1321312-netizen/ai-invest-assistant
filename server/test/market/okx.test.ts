@@ -67,3 +67,40 @@ test('tickers give last, open and quote volume as numbers', async () => {
   } });
   expect(await createOkxClient({ fetchImpl: f }).getTickers('SPOT')).toEqual([{ instId: 'BTC-USDT', last: 60000, open24h: 59000, volCcy24h: 900000000 }]);
 });
+
+describe('futures metrics and announcements', () => {
+  test('open interest, long/short ratio and liquidations in USD using contract size', async () => {
+    const f = fakeFetch({
+      '/api/v5/public/open-interest': () => ok([{ instId: 'BTC-USDT-SWAP', oiUsd: '1927756626.9' }]),
+      '/api/v5/rubik/stat/contracts/long-short-account-ratio': (url) => {
+        expect(url.searchParams.get('ccy')).toBe('BTC');
+        return ok([['1795698000000', '2.37'], ['1795694400000', '2.45']]);
+      },
+      '/api/v5/public/liquidation-orders': (url) => {
+        expect(url.searchParams.get('uly')).toBe('BTC-USDT');
+        expect(url.searchParams.get('state')).toBe('filled');
+        return ok([{ details: [
+          { bkPx: '60961', posSide: 'short', side: 'buy', sz: '4', ts: '1795696907655' },
+          { bkPx: '60000', posSide: 'long', side: 'sell', sz: '2', ts: '1795696907000' },
+        ] }]);
+      },
+      '/api/v5/public/instruments': () => ok([{ ctVal: '0.01' }]),
+    });
+    const c = createOkxClient({ fetchImpl: f });
+    expect(await c.getOpenInterest('BTC-USDT-SWAP')).toEqual({ oiUsd: 1927756626.9 });
+    expect(await c.getLongShortRatio('BTC')).toBe(2.37);
+    expect(await c.getLiquidations('BTC-USDT')).toEqual([
+      { side: 'short', usd: 4 * 60961 * 0.01, ts: 1795696907655 },
+      { side: 'long', usd: 2 * 60000 * 0.01, ts: 1795696907000 },
+    ]);
+  });
+
+  test('announcements are flattened with type, title, link and time', async () => {
+    const f = fakeFetch({ '/api/v5/support/announcements': () => ok([{ details: [
+      { annType: 'announcements-delistings', title: 'OKX to delist XYZ', url: 'https://www.okx.com/help/x', pTime: '1795687218036' },
+    ] }]) });
+    expect(await createOkxClient({ fetchImpl: f }).getAnnouncements()).toEqual([
+      { type: 'announcements-delistings', title: 'OKX to delist XYZ', url: 'https://www.okx.com/help/x', ts: 1795687218036 },
+    ]);
+  });
+});

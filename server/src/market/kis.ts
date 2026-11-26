@@ -14,6 +14,7 @@ export class KisError extends Error {}
 
 export interface RankRow { code: string | null; symbol: string | null; exchange: UsExchange | null; name: string; price: number; changePct: number; value: number | null }
 export interface IndexQuote { value: number; changePct: number }
+export interface StockInfo { marketCap: number | null; per: number | null; pbr: number | null; eps: number | null; high52: number | null; low52: number | null; currency: 'KRW' | 'USD' }
 
 export interface KisClient {
   getCandles(inst: Instrument, bar: Bar, limit: number): Promise<Candle[]>;
@@ -24,6 +25,8 @@ export interface KisClient {
   getIndex(code: '0001' | '1001'): Promise<IndexQuote>;
   /** S&P500 SPX, 나스닥 종합 COMP */
   getUsIndex(symbol: 'SPX' | 'COMP'): Promise<IndexQuote>;
+  /** 시가총액(국내는 원, 미국은 달러), PER, PBR, EPS, 52주 최고·최저 */
+  getBasicInfo(inst: Instrument): Promise<StockInfo>;
 }
 
 interface StoredToken { token: string; expiresAt: number }
@@ -48,6 +51,8 @@ function ymdKst(ms: number): string {
 
 const US_EXCHANGES: UsExchange[] = ['NAS', 'NYS', 'AMS'];
 const RANK_LIMIT = 20;
+/** 빈 값·0은 모름(null) */
+const numOrNull = (s: unknown): number | null => { const n = num(s); return n === 0 ? null : n; };
 const text = (s: unknown): string | null => (typeof s === 'string' && s.trim() ? s.trim() : null);
 
 /** 1분봉 → 더 큰 분봉으로 묶는다(시작 시각 기준). */
@@ -263,6 +268,21 @@ export function createKisClient(opts: {
   return {
     async getRanking(market, kind) {
       return market === 'kr' ? domesticRanking(kind) : overseasRanking(kind);
+    },
+
+    async getBasicInfo(inst) {
+      if (inst.market === 'kr') {
+        const { body } = await request('/uapi/domestic-stock/v1/quotations/inquire-price', 'FHKST01010100', { FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: inst.symbol });
+        const o = body.output ?? {};
+        const cap = numOrNull(o.hts_avls);
+        return { marketCap: cap === null ? null : cap * 1e8, per: numOrNull(o.per), pbr: numOrNull(o.pbr), eps: numOrNull(o.eps), high52: numOrNull(o.w52_hgpr), low52: numOrNull(o.w52_lwpr), currency: 'KRW' };
+      }
+      if (inst.market === 'us') {
+        const { body } = await request('/uapi/overseas-price/v1/quotations/price-detail', 'HHDFS76200200', { AUTH: '', EXCD: inst.exchange!, SYMB: inst.symbol });
+        const o = body.output ?? {};
+        return { marketCap: numOrNull(o.tomv), per: numOrNull(o.perx), pbr: numOrNull(o.pbrx), eps: numOrNull(o.epsx), high52: numOrNull(o.h52p), low52: numOrNull(o.l52p), currency: 'USD' };
+      }
+      throw new KisError('주식 종목만 조회할 수 있습니다');
     },
 
     async getIndex(code) {

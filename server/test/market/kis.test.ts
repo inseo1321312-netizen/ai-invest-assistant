@@ -192,3 +192,19 @@ describe('rankings and indices', () => {
     expect(await client(f).getUsIndex('SPX')).toEqual({ value: 6012.5, changePct: -0.31 });
   });
 });
+
+describe('fundamentals', () => {
+  test('domestic: market cap from 억원, empty and zero values are null', async () => {
+    const f = baseRoutes({ '/uapi/domestic-stock/v1/quotations/inquire-price': () => ({ rt_cd: '0', output: { stck_prpr: '70500', prdy_ctrt: '1', hts_avls: '4300000', per: '12.50', pbr: '', eps: '5000', w52_hgpr: '88000', w52_lwpr: '0' } }) });
+    expect(await client(f).getBasicInfo(samsung)).toEqual({ marketCap: 4.3e14, per: 12.5, pbr: null, eps: 5000, high52: 88000, low52: null, currency: 'KRW' });
+  });
+
+  test('overseas: price-detail fields', async () => {
+    const f = baseRoutes({ '/uapi/overseas-price/v1/quotations/price-detail': (url) => {
+      expect(url.searchParams.get('EXCD')).toBe('NAS');
+      expect(url.searchParams.get('SYMB')).toBe('AAPL');
+      return { rt_cd: '0', output: { last: '230', base: '228', tomv: '3500000000000', perx: '35.1', pbrx: '50.2', epsx: '6.5', h52p: '260', l52p: '165', mcap: '999' } };
+    } });
+    expect(await client(f).getBasicInfo(apple)).toEqual({ marketCap: 3.5e12, per: 35.1, pbr: 50.2, eps: 6.5, high52: 260, low52: 165, currency: 'USD' });
+  });
+});

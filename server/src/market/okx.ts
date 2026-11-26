@@ -13,7 +13,16 @@ export class OkxError extends Error {
 
 export interface OkxTicker { instId: string; last: number; open24h: number; volCcy24h: number }
 
+export interface OkxLiquidation { side: 'long' | 'short'; usd: number; ts: number }
+export interface OkxAnnouncement { type: string; title: string; url: string; ts: number }
+
 export interface OkxClient {
+  getOpenInterest(instId: string): Promise<{ oiUsd: number }>;
+  /** 롱·숏 계정 비율(최근 1시간 단위 값) */
+  getLongShortRatio(ccy: string): Promise<number | null>;
+  /** 최근 청산 내역. uly 예: BTC-USDT */
+  getLiquidations(uly: string): Promise<OkxLiquidation[]>;
+  getAnnouncements(): Promise<OkxAnnouncement[]>;
   /** 전체 시세. SPOT의 volCcy24h는 호가 화폐(USDT 등) 기준 24시간 거래대금 */
   getTickers(instType: 'SPOT' | 'SWAP'): Promise<OkxTicker[]>;
   getCandles(instId: string, bar: Bar, limit: number): Promise<Candle[]>;
@@ -93,6 +102,27 @@ export function createOkxClient(opts: { fetchImpl?: typeof fetch } = {}): OkxCli
     },
 
     getFundingRate,
+
+    async getOpenInterest(instId) {
+      const data = await call<{ oiUsd: string }[]>('/api/v5/public/open-interest', { instType: 'SWAP', instId });
+      return { oiUsd: num(data[0]?.oiUsd) };
+    },
+
+    async getLongShortRatio(ccy) {
+      const data = await call<string[][]>('/api/v5/rubik/stat/contracts/long-short-account-ratio', { ccy, period: '1H' });
+      return numOrNull(data[0]?.[1]);
+    },
+
+    async getLiquidations(uly) {
+      const data = await call<{ details?: { bkPx: string; posSide: string; sz: string; ts: string }[] }[]>('/api/v5/public/liquidation-orders', { instType: 'SWAP', uly, state: 'filled' });
+      const ctVal = await contractValue(`${uly}-SWAP`).catch(() => 1);
+      return (data[0]?.details ?? []).map((d) => ({ side: d.posSide === 'long' ? 'long' as const : 'short' as const, usd: num(d.sz) * num(d.bkPx) * ctVal, ts: num(d.ts) }));
+    },
+
+    async getAnnouncements() {
+      const data = await call<{ details?: { annType: string; title: string; url: string; pTime: string }[] }[]>('/api/v5/support/announcements', {});
+      return (data[0]?.details ?? []).map((d) => ({ type: d.annType, title: d.title, url: d.url, ts: num(d.pTime) }));
+    },
 
     async getTickers(instType) {
       const rows = await call<{ instId: string; last: string; open24h: string; volCcy24h: string }[]>('/api/v5/market/tickers', { instType });

@@ -19,6 +19,10 @@ export function fakeOkx(over: Partial<OkxClient> = {}) {
     async getQuote(instId) { return { instrument: parseInstrumentKey(`coin:${instId}`), price: 100, changePct24h: 1, currency: 'USDT', time: 0 }; },
     async getFundingRate() { return null; },
     async getTickers() { return []; },
+    async getOpenInterest() { return { oiUsd: 0 }; },
+    async getLongShortRatio() { return null; },
+    async getLiquidations() { return []; },
+    async getAnnouncements() { return []; },
     ...over,
   };
   return okx;
@@ -31,6 +35,7 @@ export function fakeKis(over: Partial<KisClient> = {}): KisClient {
     async getRanking() { return []; },
     async getIndex() { return { value: 0, changePct: 0 }; },
     async getUsIndex() { return { value: 0, changePct: 0 }; },
+    async getBasicInfo(inst) { return { marketCap: null, per: null, pbr: null, eps: null, high52: null, low52: null, currency: inst.market === 'kr' ? 'KRW' : 'USD' }; },
     ...over,
   };
 }

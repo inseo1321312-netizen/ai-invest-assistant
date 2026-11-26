@@ -16,6 +16,7 @@ export const KIS_READ_PATHS: ReadonlySet<string> = new Set([
   '/uapi/overseas-stock/v1/ranking/trade-pbmn', // HHDFS76320010 거래대금
   '/uapi/domestic-stock/v1/quotations/inquire-index-price', // FHPUP02100000 코스피·코스닥
   '/uapi/overseas-price/v1/quotations/inquire-daily-chartprice', // FHKST03030100 해외 지수
+  '/uapi/overseas-price/v1/quotations/price-detail', // HHDFS76200200 해외 기본 지표
 ]);
 
 export class KisBlockedError extends Error {
