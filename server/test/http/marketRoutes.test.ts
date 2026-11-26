@@ -76,3 +76,13 @@ test('sentiment route returns the index, or null when it is not set up', async (
   const c2 = await loginCookie(bare);
   expect((await bare.inject({ method: 'GET', url: '/api/market/sentiment', headers: { cookie: c2 } })).json()).toEqual({ sentiment: null });
 });
+
+test('recent views appear in overview, excluding favorites', async () => {
+  const { app, cookie } = await setup();
+  for (const key of ['coin:SOL-USDT', 'coin:ETH-USDT']) await app.inject({ method: 'POST', url: '/api/recent', headers: { cookie }, payload: { key } });
+  await app.inject({ method: 'POST', url: '/api/watchlist', headers: { cookie }, payload: { key: 'coin:SOL-USDT' } });
+  const body = (await app.inject({ method: 'GET', url: '/api/market/coin/overview', headers: { cookie } })).json();
+  expect(body.recent.map((r: { key: string }) => r.key)).toEqual(['coin:ETH-USDT']);
+  expect(body.recent[0].quote.price).toBe(100);
+  expect((await app.inject({ method: 'POST', url: '/api/recent', headers: { cookie }, payload: { key: 'bad' } })).statusCode).toBe(400);
+});

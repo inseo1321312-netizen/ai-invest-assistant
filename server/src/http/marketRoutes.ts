@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import type { Db } from '../db.js';
+import { listRecent, recordView } from '../features/recent.js';
 import type { MarketService } from '../market/service.js';
 import type { Instrument, MarketId, Quote } from '../market/types.js';
 import { BARS, instrumentKey, MARKETS, parseInstrumentKey } from '../market/types.js';
@@ -19,6 +21,8 @@ const keySchema = z.string().refine((k) => {
 }, '잘못된 종목입니다');
 
 export function registerMarketRoutes(app: FastifyInstance, deps: {
+  db: Db;
+  now: () => number;
   market: MarketService;
   connected: { kis: boolean };
   badgeLookup?: BadgeLookup;
@@ -27,7 +31,7 @@ export function registerMarketRoutes(app: FastifyInstance, deps: {
   const svc = deps.market;
   const badges = deps.badgeLookup ?? (() => new Map<string, Badge>());
 
-  /** 홈의 "자주 보는 종목": 즐겨찾기 시세(최근 본 종목은 Task 2에서 채운다) */
+  /** 홈의 "자주 보는 종목": 즐겨찾기와 최근 본 종목(즐겨찾기 제외, 최대 10개)의 시세 */
   app.get('/api/market/:market/overview', async (req, reply) => {
     const market = (req.params as { market: string }).market as MarketId;
     if (!MARKETS.includes(market)) return reply.code(400).send({ error: '잘못된 요청입니다' });
@@ -39,10 +43,15 @@ export function registerMarketRoutes(app: FastifyInstance, deps: {
       const krwValue = quote === null ? null : quote.currency === 'KRW' ? quote.price : usdKrw === null ? null : quote.price * usdKrw;
       return { key, instrument: inst, quote, krwValue, badge: null };
     };
-    const favorites = await Promise.all(svc.listWatchlist(market).map(toView));
-    const b = badges(favorites.map((f) => f.key));
-    for (const f of favorites) f.badge = b.get(f.key) ?? null;
-    return { favorites, recent: [] as QuoteView[], usdKrw, errors: [...errors] };
+    const favInst = svc.listWatchlist(market);
+    const favKeys = new Set(favInst.map(instrumentKey));
+    const [favorites, recent] = await Promise.all([
+      Promise.all(favInst.map(toView)),
+      Promise.all(listRecent(deps.db, market, 10, favKeys).map((k) => toView(parseInstrumentKey(k)))),
+    ]);
+    const b = badges([...favorites, ...recent].map((f) => f.key));
+    for (const f of [...favorites, ...recent]) f.badge = b.get(f.key) ?? null;
+    return { favorites, recent, usdKrw, errors: [...errors] };
   });
 
   app.get('/api/market/candles', async (req, reply) => {
@@ -86,6 +95,13 @@ export function registerMarketRoutes(app: FastifyInstance, deps: {
   });
 
   app.get('/api/market/sentiment', async () => ({ sentiment: deps.sentiment ? await deps.sentiment().catch(() => null) : null }));
+
+  app.post('/api/recent', async (req, reply) => {
+    const parsed = z.object({ key: keySchema }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: '잘못된 종목입니다' });
+    recordView(deps.db, parsed.data.key, deps.now());
+    return { ok: true };
+  });
 
   app.post('/api/watchlist', async (req, reply) => {
     const parsed = z.object({ key: keySchema }).safeParse(req.body);

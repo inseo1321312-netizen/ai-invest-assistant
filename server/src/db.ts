@@ -30,6 +30,7 @@ export const MIGRATIONS: string[] = [
    CREATE TABLE push_subs (endpoint TEXT PRIMARY KEY, json TEXT NOT NULL);`,
   `ALTER TABLE analyses ADD COLUMN origin TEXT NOT NULL DEFAULT 'user';
    ALTER TABLE analyses ADD COLUMN tier TEXT NOT NULL DEFAULT 'standard';`,
+  `CREATE TABLE recent_views (key TEXT PRIMARY KEY, market TEXT NOT NULL, viewed_at INTEGER NOT NULL, count INTEGER NOT NULL DEFAULT 1);`,
 ];
 
 export function openDb(file: string): Db {
