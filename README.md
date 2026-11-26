@@ -1,242 +1,111 @@
 # AI 투자 비서
 
-코인(OKX)·한국주식·미국주식(한국투자증권)을 한 화면에서 보고, Claude와 GPT에게 매매 타이밍 분석, 차트 지점 분석, 채팅 상담, 매일 아침 [속보]를 받는 **혼자 쓰는** 웹앱입니다. 폰 홈 화면에 추가하면 일반 앱처럼 쓸 수 있습니다.
+코인·한국주식·미국주식 정보를 한 화면에서 보는 **혼자 쓰는** 웹앱입니다. 폰 홈 화면에 추가하면 일반 앱처럼 쓸 수 있습니다. 보기 전용이라 주문 기능은 없습니다.
 
-- 주문 기능은 없습니다. 사고파는 건 거래소·증권사 앱에서 직접 하세요.
-- 투자 판단과 책임은 본인에게 있습니다.
-- 다른 사람과 같이 쓰면 안 됩니다(구독 약관상 본인만 사용 가능).
+- **종목 검색**: "삼"을 치면 삼성전자, "애플"이나 "AAPL"을 치면 Apple, "비트"를 치면 비트코인이 나옵니다.
+- **오늘 시장 한눈에**: 코스피, 코스닥, S&P500, 나스닥, 원/달러, 코인 공포·탐욕 지수, 김치 프리미엄
+- **지금 뜨는 종목**: 시장마다 급등·거래대금 상위
+- **자주 보는 종목**: ★ 즐겨찾기와 최근 본 종목
+- **종목 화면**
+  - 관련 뉴스, 차트(크게 움직인 곳 표시)
+  - 누르면 "왜 움직였을까?" AI 설명
+  - 주식은 시가총액·PER, 코인은 펀딩비·미결제약정·청산·김프
+  - Claude·GPT 매매 타이밍 의견
+- **AI 상담**: 차트를 보여 주며 같이 고민해요.
+- **알림 코인**: 정해 둔 코인이 급변하거나 상장폐지·입출금 중단·업비트 유의 지정·대규모 청산 같은 사건이 생기면 푸시로 알려요. 새벽 2~6시에는 보내지 않아요.
+- **매일 아침 8시 [속보] 브리핑**: 즐겨찾기와 뜨는 종목, 이번 주 경제 일정
 
----
+필요한 키는 많지 않습니다.
 
-## 가장 쉬운 무료 배포: Render + Neon (아이폰 추천, 0원)
+| 키 | 꼭 필요? | 쓰는 곳 |
+|---|---|---|
+| `APP_PASSWORD` | 예 | 앱 로그인 비밀번호(12자 이상) |
+| `DATABASE_URL` | 무료 서버면 예 | Neon 주소. 서버가 잠들어도 데이터가 남아요 |
+| `ANTHROPIC_API_KEY` | AI를 쓰려면 | Claude |
+| `KIS_APP_KEY`, `KIS_APP_SECRET` | 주식 시세를 보려면 | 한국투자증권 Open API 앱키. 계좌번호는 필요 없어요 |
 
-서버가 15분 동안 안 쓰이면 잠들고, **앱을 열면 다시 깨어납니다(처음 30초~1분)**. 데이터는 무료 DB(Neon)에 자동으로 저장돼서 잠들어도 지워지지 않습니다. 아침 브리핑은 그날 처음 앱을 열 때 만들어집니다.
-
-### 1. Neon(무료 DB) 만들기 — 3분
-1. [neon.tech](https://neon.tech) → **Sign up** → **Continue with GitHub**.
-2. 프로젝트 이름은 아무거나, 지역은 **AWS Asia Pacific (Singapore)**.
-3. 만들어지면 **Connect** 화면에 나오는 연결 주소(`postgresql://`로 시작, 끝에 `sslmode=require`)를 복사해 메모장에 둡니다. **남에게 보여주지 마세요.**
-
-### 2. Render에 배포 — 5분
-1. 아래 버튼을 누르고 GitHub로 로그인합니다.
-
-   [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/inseo1321312-netizen/ai-invest-assistant)
-
-2. 입력칸이 한 화면에 나옵니다. 값을 붙여넣으세요(아래 "키 준비하기" 참고).
-   - `APP_PASSWORD`: 앱 비밀번호(**12자 이상**)
-   - `DATABASE_URL`: 1번에서 복사한 Neon 주소
-   - `ANTHROPIC_API_KEY`: Claude 키
-   - `OKX_...`, `KIS_...`: 있으면 넣고, 없으면 비워 둬도 됩니다(나중에 Render의 Environment에서 추가 가능)
-3. **Apply**(또는 Deploy)를 누르고 5~10분 기다리면 `https://ai-invest-assistant-xxxx.onrender.com` 같은 주소가 생깁니다.
-
-### 3. 아이폰에 설치
-1. 아이폰 **Safari**로 그 주소를 엽니다(처음엔 "서버를 깨우는 중" 화면이 잠깐 나와요).
-2. 공유 버튼 → **홈 화면에 추가**.
-3. 앱을 열고 로그인 → 설정 → **연결 점검**을 눌러 모두 초록색인지 확인합니다.
-
-### 4. ChatGPT Plus 연결 (PC에서 한 번)
-PC에서 이 저장소 폴더를 열고(처음이면 `npm install`), 아래를 실행해 ChatGPT에 로그인합니다.
-```
-npm run siwc:login -w server -- --server https://<Render 주소>
-```
+코인 시세(OKX)와 업비트, 뉴스는 키가 필요 없습니다.
 
 ---
 
-## 준비물
+## 무료 배포: Render + Neon (아이폰 추천, 0원)
 
-| 항목 | 용도 |
-|---|---|
-| GitHub 계정 | 코드 저장(공개 저장소) |
-| 서버 | **Oracle Cloud 평생 무료 서버(추천, 0원)** 또는 Railway(월 5달러 정도) |
-| Tailscale 계정(무료) | Oracle로 배포할 때, 폰에서만 들어가는 HTTPS 주소 |
-| PC에 Node.js 24 | ChatGPT 로그인 도구 실행(한 번) |
-| Claude Max 또는 Ultra 구독 | 매달 들어오는 API 크레딧으로 Claude 사용 |
-| ChatGPT Plus 구독 | GPT 사용 |
-| OKX 계정 | 코인 시세·보유 현황 |
-| 한국투자증권 계좌 | 한국·미국 주식 시세·보유 현황 |
+### 1. Neon(무료 DB) 만들기
+1. `console.neon.tech` 에 가입합니다.
+2. 프로젝트를 만들 때 지역은 **AWS Asia Pacific (Singapore)** 를 고릅니다.
+3. **Connect**를 누르고, `postgresql://`로 시작하는 주소를 복사해 메모장에 둡니다. 이 주소는 아무에게도 보내지 마세요.
 
----
+### 2. Render에 배포
+1. 아래 주소를 브라우저에 붙여넣고 가입합니다.
+   `render.com/deploy?repo=https://github.com/inseo1321312-netizen/ai-invest-assistant`
+2. 칸을 채웁니다.
+   - `APP_PASSWORD`
+   - `DATABASE_URL`: Neon 주소
+   - `ANTHROPIC_API_KEY`: 있으면
+   - `KIS_APP_KEY`·`KIS_APP_SECRET`: 있으면
+3. **Deploy Blueprint**를 누릅니다. 처음에는 5~10분 걸립니다.
+4. 키를 나중에 넣거나 바꾸려면 Render → 서비스 → **Environment**에서 고치고 **Save, rebuild, and deploy**를 누릅니다.
 
-## 1. 키와 값 준비하기
+> **업데이트할 때**: 이 저장소를 Render에 GitHub 계정으로 연결하지 않았다면 자동 배포가 되지 않습니다. 새 버전이 올라오면 Render → 서비스 → **Manual Deploy → Deploy latest commit**을 누르세요.
 
-### 1-1. Claude API 키 (구독 크레딧 사용)
+### 3. 서버 깨워 두기(알림용, 자동)
+Render 무료 서버는 15분 동안 아무도 안 쓰면 잠들고, 잠든 동안에는 알림을 확인하지 못합니다.
+- 이 저장소의 `.github/workflows/keep-awake.yml`이 10분마다 서버를 깨웁니다. 새벽 2~6시(한국 시간)에는 쉬어요.
+- 한 달 약 620시간이라 Render 무료 750시간 안에 들어갑니다.
+- GitHub 저장소의 **Actions** 탭에서 `keep-awake`가 도는지 볼 수 있습니다.
+- 60일 동안 저장소에 변경이 없으면 GitHub가 예약 작업을 멈춥니다. 그때는 Actions에서 다시 켜 주세요.
 
-1. **브라우저**로 claude.ai에 들어가 설정에서 "API 크레딧"을 받습니다. 요금제를 시작한 지 7일이 지나야 받을 수 있습니다.
-2. 크레딧을 연결할 Console 조직을 고릅니다(platform.claude.com).
-3. Console에서 API 키를 만듭니다.
-4. **결제 수단은 등록하지 마세요.** 그러면 크레딧을 다 써도 추가 요금 없이 멈춥니다.
+### 4. 아이폰에 설치
+1. Safari로 앱 주소(`https://<이름>.onrender.com`)를 엽니다. 처음에는 깨어나는 데 30초~1분 걸려요.
+2. 로그인합니다.
+3. 공유 버튼 → **홈 화면에 추가**를 누릅니다.
+4. 홈 화면 앱에서 **설정 → 알림 켜기**를 누르고 허용합니다. 아이폰은 홈 화면 앱에서만 알림을 받을 수 있어요.
+5. **설정 → 연결 점검**을 누르면 연결 상태를 한 번에 볼 수 있어요. OKX·업비트·한국투자증권·종목 검색·뉴스·Claude·ChatGPT·데이터 저장을 확인해요.
 
-### 1-2. OKX 읽기 전용 키
+### 5. ChatGPT Plus 연결(아이폰에서)
+1. 앱 **설정 → ChatGPT 연결**을 누르면 Safari에서 OpenAI 로그인이 열립니다.
+2. 로그인하고 허용합니다.
+3. "페이지를 열 수 없음"이 나오면 정상입니다. **주소창의 주소를 길게 눌러 복사**합니다.
+4. 앱으로 돌아와 **붙여넣기**를 누르면 연결이 끝납니다.
 
-1. OKX → 내 정보 → API → API 키 만들기.
-2. 권한은 **읽기(Read)만** 체크합니다. 거래·출금은 체크하지 마세요.
-3. 패스프레이즈를 정하고, API 키·시크릿·패스프레이즈를 적어 둡니다.
-
-### 1-3. 한국투자증권 앱키
-
-1. 한국투자증권 홈페이지나 앱에서 "KIS Developers(Open API)"를 신청합니다.
-2. 연결할 계좌를 고르고 앱키·앱시크릿을 받습니다.
-3. 계좌번호 앞 8자리와 상품코드 2자리(보통 `01`)를 적어 둡니다.
-
-> **어느 계좌 키를 쓸지 고르세요.** 한국투자증권 키는 조회만 되도록 제한할 수 없습니다. 이 앱은 조회용 주소만 부르도록 막아 두었지만, 키 자체로는 주문도 가능합니다.
->
-> | 방법 | 장점 | 위험 |
-> |---|---|---|
-> | 지금 쓰는 계좌의 키 | 보유 주식이 자동으로 보임 | 키가 새면 주문 가능 |
-> | 돈을 넣지 않은 시세용 계좌의 키 | 키가 새도 잃을 돈이 없음 | 보유 주식은 앱에서 직접 입력 |
-
-### 1-4. 웹 푸시 키(VAPID)
-
-PC 터미널에서 이 저장소 폴더를 열고:
-
-```
-npx web-push generate-vapid-keys
-```
-
-나온 Public Key와 Private Key를 적어 둡니다.
-
-### 1-5. 앱 비밀번호와 세션 비밀값
-
-- `APP_PASSWORD`: 앱에 들어갈 때 쓸 비밀번호(12자 이상).
-- `SESSION_SECRET`: 아래 명령으로 만든 임의 문자열.
-
-```
-node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
-```
-
----
-
-## 2-A. 무료로 배포하기: Oracle Cloud + Tailscale (추천)
-
-PC를 꺼도 24시간 돌아가고 비용이 들지 않습니다. 앱은 인터넷에 공개되지 않고, Tailscale에 로그인한 내 기기(폰, PC)에서만 들어갈 수 있습니다.
-
-### ① Oracle Cloud 가입
-1. oracle.com/cloud/free 에서 가입합니다. 본인 확인용으로 카드 등록이 필요하지만, 무료 범위(Always Free) 안에서는 청구되지 않습니다.
-2. **홈 지역(Home Region)**은 나중에 못 바꾸고, 무료 서버는 홈 지역에만 만들 수 있습니다. 이 순서로 고르세요.
-   - **서울(South Korea Central)** 또는 **춘천(South Korea North)**: 가장 좋습니다. 무료 자리가 차면 목록에 안 보일 수 있습니다.
-   - 한국 지역이 없으면 **싱가포르(Singapore)** 또는 **호주(Sydney)**.
-   - **일본·인도·미국은 피하세요.** OKX 이용 제한 국가로 알려져 있어 서버에서 OKX 접속이 막힐 수 있습니다.
-3. (권장) 계정을 "종량제(Pay As You Go)"로 올립니다. 무료 범위 안에서는 여전히 0원이고, 오래 놀고 있는 무료 서버를 Oracle이 회수하는 정책의 대상에서 빠집니다. 정확한 조건은 Oracle 안내를 확인하세요.
-
-### ② 서버 만들기
-1. 콘솔 → Compute → Instances → **Create instance**.
-2. Image: **Ubuntu 24.04**.
-3. Shape: **Ampere(VM.Standard.A1.Flex) 1 OCPU / 6GB** 를 추천합니다(무료). "용량 부족(Out of capacity)"이 뜨면 **VM.Standard.E2.1.Micro**(무료)를 고르세요. 설치 스크립트가 메모리를 보충합니다.
-4. SSH 키: "Generate a key pair for me" → **개인 키 저장(Save private key)**. 잃어버리면 접속할 수 없습니다.
-5. Create → 상태가 RUNNING이 되면 **Public IP**를 적어 둡니다. 방화벽(포트) 설정은 건드리지 않아도 됩니다. Tailscale이 알아서 연결합니다.
-
-### ③ 서버 접속 (PC의 PowerShell)
-```
-ssh -i <저장한 개인키 파일 경로> ubuntu@<Public IP>
-```
-처음 접속하면 "yes"를 입력합니다.
-
-설치 전에 이 서버에서 OKX와 한국투자증권에 연결되는지 확인합니다.
-```
-curl -s "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT" | head -c 120; echo
-curl -s -o /dev/null -w "KIS %{http_code}\n" https://openapi.koreainvestment.com:9443
-```
-첫 줄이 `{"code":"0"`로 시작하고, 둘째 줄이 `KIS 000`이 아닌 숫자면 괜찮습니다. 아니면 다른 지역이 필요합니다.
-
-### ④ 설치 (서버에서)
-```
-curl -fsSL https://raw.githubusercontent.com/inseo1321312-netizen/ai-invest-assistant/main/deploy/oracle/setup.sh -o setup.sh
-bash setup.sh https://github.com/inseo1321312-netizen/ai-invest-assistant.git
-```
-1. 처음 실행하면 설정 파일 `/etc/invest.env`를 만들고 멈춥니다. `sudo nano /etc/invest.env`로 1번에서 준비한 값을 채우고 저장합니다(Ctrl+O, Enter, Ctrl+X). 값은 아래 2-B의 환경변수 표와 같습니다.
-2. `bash setup.sh https://github.com/inseo1321312-netizen/ai-invest-assistant.git`를 한 번 더 실행합니다. 서버가 켜지고, Tailscale 로그인 주소가 나오면 브라우저로 열어 로그인합니다.
-3. 마지막에 `https://<서버이름>.<tailnet>.ts.net` 주소가 나옵니다. 이게 앱 주소입니다.
-
-서버는 재부팅해도 자동으로 다시 켜집니다. 코드가 바뀌면 같은 `bash setup.sh https://github.com/inseo1321312-netizen/ai-invest-assistant.git`를 다시 실행하면 업데이트됩니다.
-
-### ⑤ 폰과 PC 연결
-1. 폰과 PC에 **Tailscale 앱**을 설치하고, 서버와 **같은 계정**으로 로그인합니다.
-2. 폰의 Tailscale을 켜 둔 상태에서 ④-3의 주소를 엽니다.
-3. ChatGPT Plus 연결은 아래 3번을 따르되, 주소에 Tailscale 주소를 넣습니다(PC의 Tailscale이 켜져 있어야 함).
-
----
-
-## 2-B. Railway에 배포하기 (유료, 가장 쉬움)
-
-1. 이 코드를 GitHub 저장소에 올립니다(공개 저장소). `.env` 파일이나 키는 절대 올리지 마세요. 커밋할 때 비밀값 검사가 자동으로 돌아갑니다.
-2. Railway → New Project → Deploy from GitHub repo → 이 저장소를 고릅니다.
-3. 서비스 → **Volumes** → Add Volume → 마운트 경로 `/data`. (DB와 로그인 토큰이 여기 저장됩니다. 없으면 재배포 때 지워집니다.)
-4. 서비스 → **Variables**에 아래 값을 넣습니다.
-
-| 이름 | 값 |
-|---|---|
-| `NODE_ENV` | `production` |
-| `DATA_DIR` | `/data` |
-| `APP_PASSWORD` | 1-5에서 정한 비밀번호 |
-| `SESSION_SECRET` | 1-5에서 만든 값 |
-| `ANTHROPIC_API_KEY` | 1-1의 Claude API 키 |
-| `OKX_API_KEY` / `OKX_API_SECRET` / `OKX_API_PASSPHRASE` | 1-2의 값 |
-| `KIS_APP_KEY` / `KIS_APP_SECRET` | 1-3의 값 |
-| `KIS_ACCOUNT_NO` | 계좌번호 앞 8자리 |
-| `KIS_ACCOUNT_PRODUCT` | 상품코드 2자리(보통 `01`) |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | 1-4의 값 |
-| `VAPID_SUBJECT` | `mailto:` 뒤에 본인 이메일 |
-| `OPENAI_API_KEY` | (선택) GPT 비상용 종량제 키 |
-
-5. 서비스 → Settings → Networking → **Generate Domain**으로 주소를 만듭니다.
-6. 배포가 끝나면 `https://<주소>/api/health`가 `{"ok":true}`를 보여주는지 확인합니다.
-
-서버는 복제본 1개로만 돌려야 합니다(`railway.json`에 설정돼 있음).
-
----
-
-## 3. ChatGPT Plus 연결하기 (PC에서 한 번)
-
-ChatGPT 로그인은 PC 브라우저에서만 할 수 있어서, PC에서 로그인한 뒤 결과를 서버로 보냅니다. 로그인 정보는 PC에 남지 않습니다.
-
-1. PC에 Node.js 24를 설치하고, 이 저장소 폴더에서 `npm install`을 한 번 실행합니다.
-2. 아래 명령을 실행합니다(주소는 2-5에서 만든 주소).
+OpenAI는 로그인 결과를 같은 기기(`127.0.0.1`)로만 돌려줍니다. 그래서 주소를 옮겨 붙이는 단계가 필요합니다. PC가 있다면 저장소 폴더에서 아래 명령으로도 연결할 수 있습니다.
 
 ```
 npm run siwc:login -w server -- --server https://<앱 주소>
 ```
 
-3. 앱 비밀번호를 입력하면 브라우저에 ChatGPT 로그인 창이 열립니다. 로그인하고 "플랜 사용"을 허용합니다.
-4. 터미널에 "ChatGPT Plus 연결 완료"가 나오면 끝입니다.
-
-서버가 30일 넘게 GPT를 쓰지 않거나 연결이 끊기면, 앱 설정 화면에 "연결 안 됨"이 뜹니다. 그때 이 과정을 다시 하면 됩니다.
-
 ---
 
-## 4. 폰에 설치하기
+## 한국투자증권 앱키(선택)
+1. 한국투자증권 앱·홈페이지에서 **KIS Developers(Open API)**를 신청합니다.
+2. 앱키·앱시크릿을 받아 Render의 `KIS_APP_KEY`, `KIS_APP_SECRET`에 넣습니다.
 
-- **아이폰**: Safari로 앱 주소 열기 → 공유 버튼 → "홈 화면에 추가". 알림은 홈 화면에 추가한 앱에서만 받을 수 있습니다.
-- **안드로이드**: Chrome으로 앱 주소 열기 → 메뉴 → "앱 설치" 또는 "홈 화면에 추가".
+앱키가 있으면 한국·미국 주식의 시세, 차트, 순위, 지수, 기본 정보가 보입니다. 종목 이름 검색은 키 없이도 됩니다.
 
-홈 화면 앱을 열고 로그인 → 설정 → **알림 켜기**를 누르세요.
-
----
-
-## 5. 처음 확인하기
-
-1. 코인 · 한국주식 · 미국주식 탭에 보유 종목이 보이는지 확인합니다.
-2. 종목을 눌러 차트가 뜨는지, 캔들을 누르면 "왜 움직였는지" 설명이 오는지 확인합니다.
-3. 설정 → **지금 브리핑 만들기**를 누르고 1분 정도 뒤에 맨 위 소식이 생기는지 확인합니다.
-
-> 한국투자증권 응답의 일부 필드 이름은 공개 예제로 확인하지 못했습니다. 주식 탭이 비어 보이거나 가격이 0으로 나오면 그 화면을 캡처해 두세요. 필드 이름만 고치면 됩니다.
-
----
+> 한국투자증권 키는 "조회만" 되도록 제한할 수 없습니다. 그래서 이 앱이 대신 막아 두었습니다.
+> - 조회용 주소만 부릅니다. 주문·계좌 주소는 막혀 있어요.
+> - 계좌번호도 쓰지 않습니다.
+>
+> 더 안전하게 하려면 돈이 없는 계좌로 앱키를 받으세요.
 
 ## 비용과 한도
-
-- Claude는 구독 크레딧에서 나갑니다. 설정 화면에서 하루·한 달 한도를 정할 수 있고(기본: 하루 직접 사용 3달러, 하루 예약 작업 1.5달러, 한 달 80달러), 넘으면 AI 호출을 멈춥니다.
-- GPT는 ChatGPT Plus 사용량에서 나갑니다(추가 비용 없음). Plus 한도에 닿으면 앱에 안내가 뜹니다. ChatGPT 연결이 막히면 설정에서 "OpenAI 종량제(비상용)"로 바꿀 수 있습니다(`OPENAI_API_KEY` 필요, 한 달 5달러 한도).
-- 매일 아침 8시 브리핑, 매시 5분 급변(±5%)·청산 근접(5% 이내) 확인이 자동으로 돌아갑니다.
+- **Claude**: 구독 크레딧에서 나갑니다. 설정 화면에서 하루·한 달 한도를 정할 수 있고, 한도를 넘으면 AI 호출을 멈춥니다.
+- **GPT**: ChatGPT Plus 사용량에서 나갑니다(추가 비용 없음).
+- **자동으로 도는 작업**
+  - 아침 8시 브리핑
+  - 알림 코인 시세 확인(1분마다)과 사건 확인(5분마다)
+  - 알림 코인이 크게 움직이면 AI가 이유를 한 줄 붙입니다(크레딧 한도 안에서).
 
 ## 문제 해결
 
 | 증상 | 할 일 |
 |---|---|
-| "ChatGPT 다시 로그인이 필요합니다" | 3번 과정을 다시 실행 |
-| "Claude API 키를 확인하세요" | Railway의 `ANTHROPIC_API_KEY` 확인 |
-| "이번 달 AI 사용 한도에 도달했습니다" | 설정에서 한도 조정, 또는 다음 달까지 대기 |
-| 한국투자증권 데이터를 못 가져옴 | 앱키·계좌번호 확인. 하루에 토큰을 너무 자주 받으면 잠시 막힐 수 있음 |
-| 알림이 안 옴(아이폰) | 홈 화면에 추가한 앱에서 알림 켜기를 다시 누르기 |
+| 앱이 안 열림(처음 1분) | 무료 서버가 깨어나는 중이에요. 잠시 기다리세요 |
+| 새 화면이 안 보임 | Render에서 Manual Deploy를 눌렀는지 확인하고, 앱을 완전히 닫았다 다시 여세요 |
+| 연결 점검에서 OKX·업비트 실패 | 서버 지역에서 막혔을 수 있어요. 화면을 캡처해 두세요 |
+| 주식이 안 보임 | `KIS_APP_KEY`, `KIS_APP_SECRET` 확인 |
+| "ChatGPT 다시 로그인이 필요합니다" | 설정 → ChatGPT 연결을 다시 하기 |
+| 알림이 안 옴(아이폰) | 홈 화면 앱에서 알림 켜기를 다시 누르고, 알림 코인(🔔)이 있는지 확인 |
 
 ## 개발
 
@@ -247,3 +116,5 @@ npm run build
 ```
 
 로컬 실행: 저장소 폴더에 `.env.local`(커밋 금지)을 만들고 `node --env-file=.env.local server/dist/index.js`.
+
+다른 서버에 올릴 때도 같은 환경 변수를 쓰면 됩니다(`deploy/oracle/setup.sh` 참고).
