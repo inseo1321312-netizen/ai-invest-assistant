@@ -61,3 +61,9 @@ test('trending says when stock rankings need the KIS key', async () => {
   const c2 = await loginCookie(withKey);
   expect((await withKey.inject({ method: 'GET', url: '/api/trending/kr', headers: { cookie: c2 } })).json()).toEqual({ items: [], needsKey: false });
 });
+
+test('with Naver stock prices, stock rankings never ask for the KIS key', async () => {
+  const app = await buildApp(testDeps({ trending: { get: async () => [] }, connected: { kis: false }, stocksAvailable: true }));
+  const cookie = await loginCookie(app);
+  expect((await app.inject({ method: 'GET', url: '/api/trending/kr', headers: { cookie } })).json()).toEqual({ items: [], needsKey: false });
+});

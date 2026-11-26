@@ -234,7 +234,7 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
         {s && (
           <div style={{ marginTop: 10 }} className="small">
             <p><span className="status-dot on" />코인 시세(OKX·업비트) 키 없이 연결</p>
-            <p><span className={`status-dot${s.keys.kis ? ' on' : ''}`} />한국투자증권 앱키 {s.keys.kis ? '있음' : '없음(주식 시세·순위 꺼짐)'}</p>
+            <p><span className="status-dot on" />주식 시세 {s.keys.kis ? '한국투자증권(안 되면 네이버 증권)' : '네이버 증권(키 없이 연결)'}</p>
             <p><span className={`status-dot${s.keys.push ? ' on' : ''}`} />알림 키 {s.keys.push ? '있음' : '없음'}</p>
           </div>
         )}

@@ -20,7 +20,8 @@ const QUOTE_TTL_MS = 10_000;
 
 export function createMarketService(deps: {
   okx: OkxClient;
-  kis: KisClient;
+  /** 주식 시세·캔들 출처(한투, 네이버, 또는 한투→네이버) */
+  kis: Pick<KisClient, 'getCandles' | 'getQuote'>;
   db: Db;
   now: () => number;
   fx: () => Promise<number | null>;

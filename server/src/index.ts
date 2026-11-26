@@ -6,6 +6,7 @@ import { openDb } from './db.js';
 import { buildApp } from './app.js';
 import { createSentiment } from './market/sentiment.js';
 import { createInstrumentCatalog } from './market/catalog.js';
+import { createNaverClient, withFallback, type StockSource } from './market/naver.js';
 import { downloadMasters } from './market/masters.js';
 import { createUpbitClient } from './market/upbit.js';
 import { createTrending } from './market/trending.js';
@@ -69,15 +70,18 @@ async function main() {
   const now = () => Date.now();
   const okx = createOkxClient();
   const kis = createKisClient({ creds: config.kis, db, now });
-  const market = createMarketService({ okx, kis, db, now, fx: () => getUsdKrw({ db, now }) });
+  const naver = createNaverClient({ fetch, now });
+  const STOCK_METHODS = ['getQuote', 'getCandles', 'getRanking', 'getIndex', 'getUsIndex', 'getBasicInfo'] as const;
+  /** 주식 출처: 한투 앱키가 있으면 한투를 먼저 쓰고 실패하면 네이버, 없으면 네이버 */
+  const stocks: StockSource = config.kis ? withFallback<StockSource>(kis, naver, [...STOCK_METHODS]) : naver;
+  const market = createMarketService({ okx, kis: stocks, db, now, fx: () => getUsdKrw({ db, now }) });
   const upbit = createUpbitClient({ fetch });
   const instruments = createInstrumentCatalog({ now, loadMasters: () => downloadMasters(fetch), okx, upbit });
-  const kisOrNull = config.kis ? kis : null;
   const sentiment = createSentiment({ fetch, now });
-  const trending = createTrending({ okx, kis: kisOrNull, instruments, now });
+  const trending = createTrending({ okx, kis: stocks, instruments, now });
   const news = createNews({ fetch, now });
-  const instrumentInfo = createInstrumentInfo({ kis: kisOrNull, okx, upbit, fx: () => getUsdKrw({ db, now }), now });
-  const overview = createMarketOverview({ kis: kisOrNull, fx: () => getUsdKrw({ db, now }), sentiment, upbit, okx, now });
+  const instrumentInfo = createInstrumentInfo({ kis: stocks, okx, upbit, fx: () => getUsdKrw({ db, now }), now });
+  const overview = createMarketOverview({ kis: stocks, fx: () => getUsdKrw({ db, now }), sentiment, upbit, okx, now });
   const siwc = createSiwcTokenStore({ db, now });
   const budget = createBudget(db, now);
   const anthropic = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey, maxRetries: 0 }) : null;
@@ -112,6 +116,7 @@ async function main() {
     push, runBriefing, catchUp, settings: { router, budget }, catalog, persistence, checkClaude,
     sentiment,
     instruments, trending, overview, news, instrumentInfo, upbit,
+    stocksAvailable: true, naver, kis: config.kis ? kis : null,
     webDist: path.resolve(import.meta.dirname, '../../web/dist'),
   });
   const alerts = createAlertMonitor({

@@ -56,7 +56,7 @@ const numOrNull = (s: unknown): number | null => { const n = num(s); return n ==
 const text = (s: unknown): string | null => (typeof s === 'string' && s.trim() ? s.trim() : null);
 
 /** 1분봉 → 더 큰 분봉으로 묶는다(시작 시각 기준). */
-function aggregate(candles: Candle[], seconds: number): Candle[] {
+export function aggregate(candles: Candle[], seconds: number): Candle[] {
   const out: Candle[] = [];
   for (const c of candles) {
     const t = Math.floor(c.time / seconds) * seconds;

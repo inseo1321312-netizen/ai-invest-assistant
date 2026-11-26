@@ -25,6 +25,7 @@ import type { MarketOverview } from './market/overview.js';
 import type { News } from './market/news.js';
 import type { InstrumentInfo } from './market/instrumentInfo.js';
 import type { UpbitClient } from './market/upbit.js';
+import type { KisClient } from './market/kis.js';
 import type { Trending } from './market/trending.js';
 import type { Persistence } from './persist.js';
 
@@ -58,6 +59,12 @@ export interface AppDeps {
   instrumentInfo?: InstrumentInfo | null;
   /** ChatGPT 로그인 코드 교환(테스트에서 바꿔 끼움) */
   siwcExchange?: (p: { clientId: string; code: string; verifier: string; redirectUri: string }) => Promise<SiwcTokens>;
+  /** 앱키 없이도 주식 시세가 되는지(네이버 증권) */
+  stocksAvailable?: boolean;
+  /** 네이버 증권(연결 점검용) */
+  naver?: Pick<KisClient, 'getQuote'> | null;
+  /** 한투 클라이언트 자체(연결 점검용) */
+  kis?: Pick<KisClient, 'getQuote'> | null;
   /** 업비트(연결 점검용) */
   upbit?: Pick<UpbitClient, 'markets' | 'krwPrices'> | null;
   /** 코인 공포·탐욕 지수 */

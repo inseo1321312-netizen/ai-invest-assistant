@@ -6,6 +6,7 @@ import type { Persistence } from '../persist.js';
 import type { InstrumentCatalog } from '../market/catalog.js';
 import type { News } from '../market/news.js';
 import type { UpbitClient } from '../market/upbit.js';
+import type { KisClient } from '../market/kis.js';
 
 type State = 'ok' | 'warn' | 'fail' | 'off';
 interface Check { id: string; label: string; state: State; detail: string }
@@ -26,6 +27,10 @@ export function registerDiagnoseRoutes(app: FastifyInstance, deps: {
   instruments?: InstrumentCatalog | null;
   upbit?: Pick<UpbitClient, 'markets'> | null;
   news?: Pick<News, 'search'> | null;
+  /** 네이버 증권(주식 시세 기본 출처) */
+  naver?: Pick<KisClient, 'getQuote'> | null;
+  /** 한투 클라이언트 자체(대체 출처를 거치지 않고 확인) */
+  kis?: Pick<KisClient, 'getQuote'> | null;
 }) {
   app.get('/api/admin/diagnose', async () => {
     const checks: Check[] = await Promise.all([
@@ -47,9 +52,21 @@ export function registerDiagnoseRoutes(app: FastifyInstance, deps: {
         }
       })(),
       (async (): Promise<Check> => {
-        if (!deps.connected.kis) return { id: 'kis', label: '한국투자증권', state: 'off', detail: '한국투자증권 앱키가 없어요(주식 시세·순위 꺼짐)' };
+        if (!deps.naver) return { id: 'naver', label: '네이버 증권', state: 'off', detail: '네이버 증권 연결이 꺼져 있어요' };
         try {
-          const q = await withTimeout(deps.market.getQuote(parseInstrumentKey('kr:005930')));
+          const [kr, us] = await withTimeout(Promise.all([
+            deps.naver.getQuote(parseInstrumentKey('kr:005930')),
+            deps.naver.getQuote(parseInstrumentKey('us:NAS:AAPL')).catch(() => null),
+          ]));
+          return { id: 'naver', label: '네이버 증권', state: us ? 'ok' : 'warn', detail: `삼성전자 ${Math.round(kr.price).toLocaleString('ko-KR')}원${us ? `, 애플 ${us.price}` : ' (미국 시세는 못 받았어요)'}` };
+        } catch {
+          return { id: 'naver', label: '네이버 증권', state: 'fail', detail: '연결 실패. 서버 지역에서 막혔을 수 있어요(한투 앱키를 넣으면 한투로 받아요)' };
+        }
+      })(),
+      (async (): Promise<Check> => {
+        if (!deps.connected.kis) return { id: 'kis', label: '한국투자증권', state: 'off', detail: '앱키 없음. 주식 시세는 네이버 증권으로 받아요' };
+        try {
+          const q = await withTimeout((deps.kis ?? deps.market).getQuote(parseInstrumentKey('kr:005930')));
           return { id: 'kis', label: '한국투자증권', state: q.price > 0 ? 'ok' : 'warn', detail: q.price > 0 ? `삼성전자 ${Math.round(q.price).toLocaleString('ko-KR')}원` : '연결은 됐지만 가격이 0으로 와요(응답 형식 확인 필요)' };
         } catch {
           return { id: 'kis', label: '한국투자증권', state: 'fail', detail: '앱키·앱시크릿을 확인하세요' };

@@ -18,6 +18,8 @@ export function registerInfoRoutes(app: FastifyInstance, deps: {
   news?: News | null;
   instrumentInfo?: InstrumentInfo | null;
   connected?: { kis: boolean };
+  /** 앱키 없이도 주식 시세가 되는지(네이버 증권) */
+  stocksAvailable?: boolean;
 }) {
   app.get('/api/search', async (req, reply) => {
     const p = z.object({ q: z.string().max(40).default('') }).safeParse(req.query);
@@ -30,7 +32,7 @@ export function registerInfoRoutes(app: FastifyInstance, deps: {
     const market = (req.params as { market: string }).market as MarketId;
     const p = z.object({ kind: z.enum(['gainers', 'value']).default('gainers') }).safeParse(req.query);
     if (!MARKETS.includes(market) || !p.success) return reply.code(400).send({ error: '잘못된 요청입니다' });
-    const needsKey = market !== 'coin' && !deps.connected?.kis;
+    const needsKey = market !== 'coin' && !deps.connected?.kis && !deps.stocksAvailable;
     if (!deps.trending) return { items: [], needsKey };
     return { items: await deps.trending.get(market, p.data.kind).catch(() => []), needsKey };
   });
