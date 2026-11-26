@@ -16,7 +16,6 @@ vi.mock('lightweight-charts', () => {
 
 import App from '../src/App';
 import { ChatView } from '../src/components/ChatView';
-import { HoldingsList } from '../src/components/HoldingsList';
 import { InstrumentView } from '../src/components/InstrumentView';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -68,32 +67,6 @@ describe('chat upgrade', () => {
     await userEvent.type(screen.getByLabelText('메시지'), '그럼?');
     await userEvent.click(screen.getByRole('button', { name: '보내기' }));
     await waitFor(() => expect(s.calls.find((c) => c.method === 'POST' && c.url.pathname === '/api/chat')?.body).toMatchObject({ chatId: 5, key: 'coin:BTC-USDT' }));
-  });
-});
-
-describe('holdings upgrade', () => {
-  test('manual holding sheet posts a leveraged position', async () => {
-    const s = mockServer({ '/api/market/coin/overview': () => overview(), 'POST /api/manual-holdings': () => ({ id: 1 }) });
-    render(<HoldingsList market="coin" onOpen={() => {}} />);
-    await userEvent.click(await screen.findByRole('button', { name: /보유 직접 입력/ }));
-    const sheet = await screen.findByRole('dialog', { name: '보유 직접 입력' });
-    await userEvent.type(within(sheet).getByLabelText('종목'), 'eth');
-    await userEvent.click(within(sheet).getByRole('radio', { name: '롱' }));
-    await userEvent.type(within(sheet).getByLabelText('수량'), '2');
-    await userEvent.type(within(sheet).getByLabelText('평균 단가'), '3000');
-    await userEvent.type(within(sheet).getByLabelText('레버리지(배)'), '5');
-    await userEvent.click(within(sheet).getByRole('button', { name: '저장' }));
-    await waitFor(() => expect(s.calls.find((c) => c.method === 'POST')?.body).toEqual({ key: 'coin:ETH-USDT-SWAP', quantity: 2, avgPrice: 3000, side: 'long', leverage: 5 }));
-  });
-
-  test('manual holding sheet rejects empty quantity', async () => {
-    mockServer({ '/api/market/coin/overview': () => overview() });
-    render(<HoldingsList market="coin" onOpen={() => {}} />);
-    await userEvent.click(await screen.findByRole('button', { name: /보유 직접 입력/ }));
-    const sheet = await screen.findByRole('dialog', { name: '보유 직접 입력' });
-    await userEvent.type(within(sheet).getByLabelText('종목'), 'btc');
-    await userEvent.click(within(sheet).getByRole('button', { name: '저장' }));
-    expect(await within(sheet).findByText('수량은 0보다 커야 해요')).toBeTruthy();
   });
 });
 

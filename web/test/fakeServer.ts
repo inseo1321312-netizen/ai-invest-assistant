@@ -26,4 +26,4 @@ export function sseResponse(events: object[]) {
 
 export const quote = (price: number, change: number, currency = 'USDT') => ({ price, changePct24h: change, currency, time: 0 });
 
-export const overview = (over: Record<string, unknown> = {}) => ({ holdings: [], watchlist: [], usdKrw: 1400, connected: true, errors: [], ...over });
+export const overview = (over: Record<string, unknown> = {}) => ({ favorites: [], recent: [], usdKrw: 1400, errors: [], ...over });

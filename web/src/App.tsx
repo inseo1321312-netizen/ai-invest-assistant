@@ -2,11 +2,13 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { api, ApiError, setUnauthorizedHandler } from './api';
 import { ChatView } from './components/ChatView';
 import { FeedBanner } from './components/FeedBanner';
-import { HoldingsList } from './components/HoldingsList';
 import { InstrumentView } from './components/InstrumentView';
 import { LoginView } from './components/LoginView';
-import { MarketClock } from './components/MarketClock';
+import { MarketOverview } from './components/MarketOverview';
 import { MarketTabs, readSavedTab, saveTab } from './components/MarketTabs';
+import { SearchSheet } from './components/SearchSheet';
+import { Trending } from './components/Trending';
+import { WatchList } from './components/WatchList';
 import { SettingsView } from './components/SettingsView';
 import type { MarketId } from './types';
 import { Icon } from './ui';
@@ -33,6 +35,7 @@ function Home({ onOpen }: { onOpen: (key: string) => void }) {
   const [tab, setTab] = useState<MarketId>(readSavedTab);
   const [refresh, setRefresh] = useState(0);
   const [spin, setSpin] = useState(false);
+  const [searching, setSearching] = useState(false);
 
   function changeTab(m: MarketId) {
     setTab(m);
@@ -49,10 +52,15 @@ function Home({ onOpen }: { onOpen: (key: string) => void }) {
         <button type="button" className={`icon-btn${spin ? ' spin' : ''}`} aria-label="새로고침" onAnimationEnd={() => setSpin(false)}
           onClick={() => { setSpin(true); setRefresh((n) => n + 1); }}><Icon.refresh /></button>
       </header>
-      <MarketClock />
+      <button type="button" className="search-pill" aria-label="종목 검색" onClick={() => setSearching(true)}>
+        <Icon.search /><span>종목 검색</span><small>삼성, 애플, 비트…</small>
+      </button>
+      <MarketOverview key={`ov-${refresh}`} />
       <FeedBanner refreshKey={refresh} onOpenKey={onOpen} />
       <MarketTabs value={tab} onChange={changeTab} />
-      <HoldingsList key={`${tab}-${refresh}`} market={tab} onOpen={onOpen} />
+      <Trending key={`tr-${tab}-${refresh}`} market={tab} onOpen={onOpen} />
+      <WatchList key={`wl-${tab}-${refresh}`} market={tab} onOpen={onOpen} />
+      {searching && <SearchSheet onOpen={onOpen} onClose={() => setSearching(false)} />}
     </div>
   );
 }

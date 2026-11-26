@@ -9,31 +9,20 @@ export interface Instrument { market: MarketId; symbol: string; kind: 'spot' | '
 export interface Quote { price: number; changePct24h: number; currency: Currency; time: number }
 export interface Badge { opinion: string; confidence: Confidence; dataTime: number; provider: ProviderId }
 
-export interface HoldingView {
-  key: string;
-  instrument: Instrument;
-  quantity: number;
-  avgPrice: number;
-  currency: Currency;
-  source: 'okx' | 'kis' | 'manual';
-  side: 'long' | 'short' | null;
-  leverage: number | null;
-  liqPrice: number | null;
-  markPrice: number | null;
-  unrealizedPnl: number | null;
-  fundingRate: number | null;
-  quote: Quote | null;
-  krwValue: number | null;
-  pnlPct: number | null;
-  badge: Badge | null;
-  manualId?: number;
-}
-
 export interface QuoteView { key: string; instrument: Instrument; quote: Quote | null; krwValue: number | null; badge: Badge | null }
 
-export interface Overview { holdings: HoldingView[]; watchlist: QuoteView[]; usdKrw: number | null; connected: boolean; errors: string[] }
+/** 홈 "자주 보는 종목": 즐겨찾기와 최근 본 종목(즐겨찾기 제외) */
+export interface Overview { favorites: QuoteView[]; recent: QuoteView[]; usdKrw: number | null; errors: string[] }
 
-export interface FeedItem { id: number; createdAt: number; day: string; kind: 'briefing' | 'breaking' | 'spike' | 'liquidation'; market: MarketId; key: string | null; title: string; body: string; isBreaking: boolean }
+export interface SearchHit { key: string; market: MarketId; name: string; symbol: string }
+export interface TrendItem { key: string; name: string; symbol: string; price: number; changePct: number; value: number | null; currency: Currency }
+export type OverviewId = 'kospi' | 'kosdaq' | 'spx' | 'nasdaq' | 'usdkrw' | 'fng' | 'kimchi';
+export interface OverviewItem { id: OverviewId; label: string; value: number | null; changePct: number | null; note: string | null }
+export interface NewsItem { title: string; url: string; source: string | null; publishedAt: number }
+export interface StockInfo { marketCap: number | null; per: number | null; pbr: number | null; eps: number | null; high52: number | null; low52: number | null; currency: 'KRW' | 'USD' }
+export interface CoinInfo { fundingRate: number | null; openInterestUsd: number | null; longShortRatio: number | null; liq1h: { longUsd: number; shortUsd: number } | null; kimchiPct: number | null; upbitWarning: boolean; upbitCautions: string[] }
+
+export interface FeedItem { id: number; createdAt: number; day: string; kind: 'briefing' | 'breaking' | 'spike' | 'liquidation' | 'alert'; market: MarketId; key: string | null; title: string; body: string; isBreaking: boolean }
 
 export interface Candle { time: number; open: number; high: number; low: number; close: number; volume: number }
 

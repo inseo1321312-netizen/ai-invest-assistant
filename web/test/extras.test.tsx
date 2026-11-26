@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { mockServer, overview, quote } from './fakeServer';
+import { mockServer, quote } from './fakeServer';
 
 vi.mock('lightweight-charts', () => ({
   CandlestickSeries: 'c', HistogramSeries: 'h', LineSeries: 'l',
@@ -15,7 +15,6 @@ vi.mock('lightweight-charts', () => ({
 }));
 
 import { InstrumentView } from '../src/components/InstrumentView';
-import { HoldingsList } from '../src/components/HoldingsList';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -35,20 +34,3 @@ test('instrument view lists how the AI opinion changed over time', async () => {
   expect(within(list).getByText(/GPT 장기/)).toBeTruthy();
 });
 
-test('coin tab shows the fear and greed index', async () => {
-  mockServer({
-    '/api/market/coin/overview': () => overview(),
-    '/api/market/sentiment': () => ({ sentiment: { value: 23, label: '극도의 공포', updatedAt: 0 } }),
-  });
-  render(<HoldingsList market="coin" onOpen={() => {}} />);
-  const card = await screen.findByRole('region', { name: '공포·탐욕 지수' });
-  expect(within(card).getByText('극도의 공포')).toBeTruthy();
-  expect(within(card).getByText('23')).toBeTruthy();
-});
-
-test('stock tabs do not ask for the coin index', async () => {
-  const s = mockServer({ '/api/market/kr/overview': () => overview() });
-  render(<HoldingsList market="kr" onOpen={() => {}} />);
-  await screen.findByText(/보유 종목이 없어요/);
-  expect(s.calls.some((c) => c.url.pathname === '/api/market/sentiment')).toBe(false);
-});
