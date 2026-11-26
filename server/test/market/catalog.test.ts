@@ -6,10 +6,11 @@ import { makeClock } from '../helpers.js';
 
 const masters = async () => ({
   kr: [
-    { code: '005930', name: '삼성전자', group: 'ST' },
-    { code: '006400', name: '삼성SDI', group: 'ST' },
-    { code: '207940', name: '삼성바이오로직스', group: 'ST' },
-    { code: '000660', name: 'SK하이닉스', group: 'ST' },
+    { code: '005930', name: '삼성전자', group: 'ST', cap: 9979597 },
+    { code: '006400', name: '삼성SDI', group: 'ST', cap: 200000 },
+    { code: '207940', name: '삼성바이오로직스', group: 'ST', cap: 600000 },
+    { code: '000660', name: 'SK하이닉스', group: 'ST', cap: 3000000 },
+    { code: '122350', name: '삼기', group: 'ST', cap: 520 },
   ],
   us: [
     { symbol: 'AAPL', exchange: 'NAS' as const, koName: '애플', enName: 'APPLE INC' },
@@ -38,7 +39,8 @@ describe('search', () => {
   test('a part of a Korean name finds the stock; spaces are ignored', async () => {
     const c = make();
     const hits = await c.search('삼');
-    expect(hits.slice(0, 3).map((h) => h.name)).toEqual(['삼성전자', '삼성SDI', '삼성바이오로직스']); // 같은 단계면 짧은 이름 먼저
+    // 같은 단계면 시가총액이 큰 종목 먼저: "삼"을 치면 삼성전자가 맨 위
+    expect(hits.slice(0, 4).map((h) => h.name)).toEqual(['삼성전자', '삼성바이오로직스', '삼성SDI', '삼기']);
     expect((await c.search('삼 성 전'))[0]).toEqual({ key: 'kr:005930', market: 'kr', name: '삼성전자', symbol: '005930' });
   });
 

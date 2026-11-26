@@ -31,8 +31,11 @@ export function makeZip(name: string, data: Buffer, method: 0 | 8 = 8): Buffer {
 }
 
 /** KIS 국내 종목 목록 한 줄(꼬리 길이: 코스피 227, 코스닥 221) */
-export function krLine(code: string, name: string, group: string, tail: 227 | 221 = 227): string {
-  return `${code.padEnd(9)}KR7${code}003${name}${group}${' '.repeat(tail - 2)}`;
+export function krLine(code: string, name: string, group: string, tail: 227 | 221 = 227, cap = 0): string {
+  // 시가총액(억원) 9자리: 코스피 꼬리 [212,221), 코스닥 [206,215)
+  const at = tail === 227 ? 212 : 206;
+  const t = (group + ' '.repeat(at - 2) + String(cap).padStart(9, '0')).padEnd(tail, ' ');
+  return `${code.padEnd(9)}KR7${code}003${name}${t}`;
 }
 
 /** KIS 미국 종목 목록 한 줄(탭 24열) */

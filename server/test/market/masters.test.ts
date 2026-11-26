@@ -14,15 +14,15 @@ describe('zip', () => {
 
 describe('KIS master files', () => {
   test('domestic: code and Korean name, ELW and warrants dropped, CRLF ok', () => {
-    const text = [krLine('005930', '삼성전자', 'ST'), krLine('57JB12', '삼성JB12콜', 'EW'), krLine('069500', 'KODEX 200', 'EF'), ''].join('\r\n');
+    const text = [krLine('005930', '삼성전자', 'ST', 227, 9979597), krLine('57JB12', '삼성JB12콜', 'EW'), krLine('069500', 'KODEX 200', 'EF', 227, 150000), ''].join('\r\n');
     expect(parseKrMaster(text, 'kospi')).toEqual([
-      { code: '005930', name: '삼성전자', group: 'ST' },
-      { code: '069500', name: 'KODEX 200', group: 'EF' },
+      { code: '005930', name: '삼성전자', group: 'ST', cap: 9979597 },
+      { code: '069500', name: 'KODEX 200', group: 'EF', cap: 150000 },
     ]);
   });
 
   test('kosdaq uses a 221-character tail', () => {
-    expect(parseKrMaster(krLine('247540', '에코프로비엠', 'ST', 221), 'kosdaq')).toEqual([{ code: '247540', name: '에코프로비엠', group: 'ST' }]);
+    expect(parseKrMaster(krLine('247540', '에코프로비엠', 'ST', 221, 90817), 'kosdaq')).toEqual([{ code: '247540', name: '에코프로비엠', group: 'ST', cap: 90817 }]);
   });
 
   test('US: stocks and ETPs only, header row ignored', () => {
@@ -41,7 +41,7 @@ describe('KIS master files', () => {
       '/common/master/nasmst.cod.zip': () => new Response(new Uint8Array(makeZip('nasmst.cod', Buffer.from(usLine('AAPL', 'APPLE', 'APPLE INC', '2'))))),
     });
     const m = await downloadMasters(f);
-    expect(m.kr).toEqual([{ code: '005930', name: 'SAMSUNG', group: 'ST' }]);
+    expect(m.kr).toEqual([{ code: '005930', name: 'SAMSUNG', group: 'ST', cap: 0 }]);
     expect(m.us.map((u) => `${u.exchange}:${u.symbol}`)).toEqual(['NAS:AAPL']);
     expect(f.calls.map((c) => c.url.host)).toContain('new.real.download.dws.co.kr');
   });

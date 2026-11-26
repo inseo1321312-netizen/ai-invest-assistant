@@ -38,7 +38,7 @@ export function createInstrumentCatalog(deps: {
   async function loadStocks() {
     const m = await deps.loadMasters();
     const next: Entry[] = [];
-    for (const r of m.kr) next.push({ hit: { key: `kr:${r.code}`, market: 'kr', name: r.name, symbol: r.code }, aliases: [norm(r.name), r.code], weight: 0 });
+    for (const r of m.kr) next.push({ hit: { key: `kr:${r.code}`, market: 'kr', name: r.name, symbol: r.code }, aliases: [norm(r.name), r.code], weight: r.cap });
     for (const r of m.us) {
       const name = r.koName || r.enName || r.symbol;
       next.push({ hit: { key: `us:${r.exchange}:${r.symbol}`, market: 'us', name, symbol: r.symbol }, aliases: [norm(r.koName), norm(r.enName), r.symbol].filter(Boolean), weight: 0 });
@@ -104,7 +104,8 @@ export function createInstrumentCatalog(deps: {
         if (stage < 3) scored.push({ e, stage });
       }
       scored.sort((a, b) => a.stage - b.stage
-        || (a.e.hit.market === 'coin' && b.e.hit.market === 'coin' ? b.e.weight - a.e.weight : 0)
+        // 같은 시장끼리는 큰 것 먼저(코인은 거래대금, 한국 주식은 시가총액)
+        || (a.e.hit.market === b.e.hit.market && a.e.hit.market !== 'us' ? b.e.weight - a.e.weight : 0)
         || a.e.hit.name.length - b.e.hit.name.length
         || a.e.hit.name.localeCompare(b.e.hit.name));
       return scored.slice(0, limit).map((s) => s.e.hit);

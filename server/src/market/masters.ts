@@ -5,12 +5,15 @@
 import type { UsExchange } from './types.js';
 import { unzipFirst } from './zip.js';
 
-export interface KrMasterRow { code: string; name: string; group: string }
+/** cap: 시가총액(억원), 모르면 0 */
+export interface KrMasterRow { code: string; name: string; group: string; cap: number }
 export interface UsMasterRow { symbol: string; exchange: UsExchange; koName: string; enName: string }
 
 const BASE = 'https://new.real.download.dws.co.kr/common/master';
 /** 줄 끝의 고정 길이 꼬리(줄바꿈 제외). 공식 예제의 228/222에서 줄바꿈 1자를 뺀 값 */
 const KR_TAIL = { kospi: 227, kosdaq: 221 } as const;
+/** 꼬리 안의 시가총액(억원) 위치 [시작, 끝) */
+const KR_CAP = { kospi: [212, 221], kosdaq: [206, 215] } as const;
 /** ELW, 신주인수권증권·증서는 검색에서 뺀다 */
 const KR_SKIP_GROUPS = new Set(['EW', 'SW', 'SR']);
 
@@ -22,9 +25,11 @@ export function parseKrMaster(text: string, kind: 'kospi' | 'kosdaq'): KrMasterR
     const head = line.slice(0, line.length - tail);
     const code = head.slice(0, 9).trim();
     const name = head.slice(21).trim();
-    const group = line.slice(line.length - tail, line.length - tail + 2);
+    const t = line.slice(line.length - tail);
+    const group = t.slice(0, 2);
+    const cap = Number(t.slice(KR_CAP[kind][0], KR_CAP[kind][1]).trim()) || 0;
     if (!/^[0-9A-Z]{6}$/.test(code) || !name || KR_SKIP_GROUPS.has(group)) continue;
-    out.push({ code, name, group });
+    out.push({ code, name, group, cap });
   }
   return out;
 }
