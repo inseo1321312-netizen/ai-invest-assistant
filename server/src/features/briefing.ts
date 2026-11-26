@@ -5,7 +5,8 @@ import * as prompts from '../ai/prompts.js';
 import type { AiTool } from '../ai/types.js';
 import { summarizeIndicators } from '../market/indicators.js';
 import type { Instrument, MarketId } from '../market/types.js';
-import { BAR_SECONDS, horizonBars, instrumentKey, MARKETS } from '../market/types.js';
+import { BAR_SECONDS, horizonBars, instrumentKey, MARKETS, parseInstrumentKey } from '../market/types.js';
+import type { TrendItem } from '../market/trending.js';
 import type { Push } from '../push.js';
 import { lastClosedTime, saveAnalysis } from './analysis.js';
 import { type FeatureDeps, fmtNum } from './deps.js';
@@ -47,7 +48,7 @@ export function isMarketOpen(market: MarketId, ms: number): boolean {
 
 interface BriefingItem { key: string; headline: string; detail: string; isBreaking: boolean; opinion: string; confidence: Confidence; reasons: string[]; risks: string[] }
 
-async function briefTab(deps: BriefingDeps, market: MarketId, instruments: Instrument[]): Promise<BriefingItem[]> {
+async function briefTab(deps: BriefingDeps, market: MarketId, instruments: Instrument[], trending: TrendItem[]): Promise<BriefingItem[]> {
   const blocks: string[] = [];
   const choices = new Map<string, string[]>();
   const dataTimes = new Map<string, number>();
@@ -68,6 +69,12 @@ async function briefTab(deps: BriefingDeps, market: MarketId, instruments: Instr
       `고를 수 있는 의견: ${choices.get(key)!.join(' / ')}`,
     ].join('\n'));
   }
+  if (trending.length) {
+    blocks.push([
+      '## 지금 뜨는 종목(상승률 상위)',
+      ...trending.map((t) => `- ${t.name} (${t.key}): ${fmtNum(t.price)} ${t.currency}, ${t.changePct >= 0 ? '+' : ''}${t.changePct.toFixed(2)}%`),
+    ].join('\n'));
+  }
   const keys = [...choices.keys()] as [string, ...string[]];
   let submitted: { summary: string; items: BriefingItem[] } | null = null;
   const submit: AiTool<{ summary: string; items: BriefingItem[] }> = {
@@ -82,7 +89,7 @@ async function briefTab(deps: BriefingDeps, market: MarketId, instruments: Instr
     }),
     async run(v) { submitted = v; return '제출되었습니다'; },
   };
-  const userText = `${MARKET_NAME[market]} 즐겨찾기 종목 아침 브리핑을 만들어 주세요.\n\n${blocks.join('\n\n')}`;
+  const userText = `${MARKET_NAME[market]} 아침 브리핑을 만들어 주세요.\n\n${blocks.join('\n\n')}`;
   const base = { provider: 'claude' as const, tier: 'standard' as const, purpose: 'scheduled' as const, instructions: prompts.BRIEFING, tools: [submit], webSearch: { maxUses: 5 } };
   let history: { role: 'user' | 'assistant'; text: string }[] = [];
   let text = userText;
@@ -120,8 +127,11 @@ export async function runMorningBriefing(deps: BriefingDeps): Promise<void> {
   const breaking: BriefingItem[] = [];
   for (const market of MARKETS) {
     const favorites = deps.market.listWatchlist(market);
-    if (favorites.length === 0) continue;
-    const items = await briefTab(deps, market, favorites);
+    const trending = deps.trending ? (await deps.trending.get(market, 'gainers').catch(() => [] as TrendItem[])).slice(0, 5) : [];
+    if (favorites.length === 0 && trending.length === 0) continue;
+    // 즐겨찾기가 없으면 뜨는 종목을 브리핑 대상으로 삼는다
+    const targets = favorites.length ? favorites : trending.map((t) => ({ ...parseInstrumentKey(t.key), name: t.name }));
+    const items = await briefTab(deps, market, targets, trending);
     breaking.push(...items.filter((i) => i.isBreaking));
   }
   if (breaking.length) {

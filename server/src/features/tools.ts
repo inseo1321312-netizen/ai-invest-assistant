@@ -2,8 +2,10 @@ import { z } from 'zod';
 import type { AiTool } from '../ai/types.js';
 import { summarizeIndicators } from '../market/indicators.js';
 import type { MarketService } from '../market/service.js';
+import { newsQueryFor, type News } from '../market/news.js';
+import type { Trending } from '../market/trending.js';
 import type { Bar, Instrument } from '../market/types.js';
-import { BARS, parseInstrumentKey } from '../market/types.js';
+import { BARS, MARKETS, parseInstrumentKey } from '../market/types.js';
 
 const barEnum = z.enum(BARS as [Bar, ...Bar[]]);
 const keyString = z.string().describe('종목 키. 예: coin:BTC-USDT, coin:BTC-USDT-SWAP, kr:005930, us:NAS:AAPL');
@@ -13,7 +15,11 @@ export function candlesCsv(candles: { time: number; open: number; high: number; 
   return ['time(KST),open,high,low,close,volume', ...rows].join('\n');
 }
 
-export function buildMarketTools(market: MarketService): AiTool[] {
+export function buildMarketTools(market: MarketService, extra: {
+  trending?: Pick<Trending, 'get'> | null;
+  news?: Pick<News, 'search'> | null;
+  instruments?: { nameOf(key: string): string | null } | null;
+} = {}): AiTool[] {
   const getCandles: AiTool<{ key: string; bar: Bar; limit: number }> = {
     name: 'get_candles',
     description: '종목의 캔들(시가·고가·저가·종가·거래량)을 오래된 것부터 가져온다. limit 최대 300.',
@@ -44,7 +50,34 @@ export function buildMarketTools(market: MarketService): AiTool[] {
       return '차트를 표시했습니다';
     },
   };
-  return [getCandles, getIndicators, showChart];
+  const tools: AiTool[] = [getCandles, getIndicators];
+  if (extra.trending) {
+    const trending = extra.trending;
+    const getTrending: AiTool<{ market: 'coin' | 'kr' | 'us'; kind: 'gainers' | 'value' }> = {
+      name: 'get_trending',
+      description: '지금 뜨는 종목을 가져온다. kind=gainers는 24시간(주식은 전일 대비) 상승률 상위, value는 거래대금 상위.',
+      schema: z.strictObject({ market: z.enum(MARKETS as ['coin', 'kr', 'us']), kind: z.enum(['gainers', 'value']) }),
+      async run({ market: m, kind }) {
+        return JSON.stringify((await trending.get(m, kind)).map((t) => ({ key: t.key, name: t.name, price: t.price, changePct: Math.round(t.changePct * 100) / 100, value: t.value, currency: t.currency })));
+      },
+    };
+    tools.push(getTrending);
+  }
+  if (extra.news) {
+    const news = extra.news;
+    const getNews: AiTool<{ key: string }> = {
+      name: 'get_news',
+      description: '종목의 최신 뉴스 제목 5개(언론사, 한국 시간, 주소)를 가져온다.',
+      schema: z.strictObject({ key: keyString }),
+      async run({ key }) {
+        const items = await news.search(newsQueryFor(parseInstrumentKey(key), extra.instruments?.nameOf(key) ?? null));
+        return JSON.stringify(items.slice(0, 5).map((n) => ({ title: n.title, source: n.source, time: new Date((n.publishedAt + 9 * 3600) * 1000).toISOString().slice(0, 16).replace('T', ' '), url: n.url })));
+      },
+    };
+    tools.push(getNews);
+  }
+  tools.push(showChart);
+  return tools;
 }
 
 /** 보유를 따로 보지 않으므로 종목 종류만으로 고른다. 선물 이름은 예전 기록과 맞춘다. */

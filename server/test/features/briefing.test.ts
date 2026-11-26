@@ -81,6 +81,22 @@ describe('morning briefing', () => {
     expect(latestAnalyses(deps.db, 'coin:ETH-USDT', 'swing')).toEqual([]);
   });
 
+  test('runs on trending items alone when there are no favorites, and asks for the week calendar', async () => {
+    const { deps, ai } = setup({ script: [[briefingSubmit([{ key: 'coin:SOL-USDT', isBreaking: false, opinion: '관망' }])]] });
+    const trending = { get: async (m: string) => (m === 'coin' ? [{ key: 'coin:SOL-USDT', name: '솔라나', symbol: 'SOL', price: 200, changePct: 12.3, value: 1, currency: 'USDT' as const }] : []) };
+    await runMorningBriefing({ ...deps, trending });
+    expect(ai.calls()).toBe(1);
+    expect(ai.requests[0]!.userText).toContain('지금 뜨는 종목');
+    expect(ai.requests[0]!.userText).toContain('솔라나');
+    expect(ai.requests[0]!.instructions).toContain('이번 주 일정');
+  });
+
+  test('no favorites and nothing trending → no AI call', async () => {
+    const { deps, ai } = setup({});
+    await runMorningBriefing({ ...deps, trending: { get: async () => [] } });
+    expect(ai.calls()).toBe(0);
+  });
+
   test('AI error in one tab does not stop others', async () => {
     const { deps } = setup({ coin: ['coin:BTC-USDT'], kr: ['kr:005930'], script: [[], [briefingSubmit([{ key: 'coin:BTC-USDT', isBreaking: false, opinion: '관망' }])]] });
     await runMorningBriefing(deps);

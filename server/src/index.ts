@@ -100,7 +100,7 @@ async function main() {
     },
   });
   const push = createPush({ vapid: config.vapid, db, subject: config.publicUrl });
-  const featureDeps = { db, market, runAi: router.runAi, now, push };
+  const featureDeps = { db, market, runAi: router.runAi, now, push, trending, news, instruments };
   const runBriefing = () => runMorningBriefing(featureDeps);
   const catchUp = () => ensureCatchUp(featureDeps);
   const checkClaude = anthropic ? async () => { await anthropic.models.list({ limit: 1 }); } : null;

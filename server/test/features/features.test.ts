@@ -55,6 +55,18 @@ describe('opinion choices', () => {
     expect(opinionChoices(parseInstrumentKey('coin:BTC-USDT-SWAP'))).toEqual(['롱 진입', '관망', '숏 진입']);
   });
 
+  test('trending and news tools are added when those services exist', async () => {
+    const { deps } = setup([]);
+    const trending = { get: async () => [{ key: 'coin:SOL-USDT', name: '솔라나', symbol: 'SOL', price: 200, changePct: 12, value: 1, currency: 'USDT' as const }] };
+    const news = { search: async (q: string) => [{ title: `${q} 소식`, url: 'https://example.com/n', source: '한경', publishedAt: 1795676400 }] };
+    const tools = buildMarketTools(deps.market, { trending, news, instruments: { nameOf: () => '비트코인' } });
+    expect(tools.map((t) => t.name)).toEqual(['get_candles', 'get_indicators', 'get_trending', 'get_news', 'show_chart']);
+    const t = JSON.parse(await tools.find((x) => x.name === 'get_trending')!.run({ market: 'coin', kind: 'gainers' }, { emit() {} }));
+    expect(t[0]).toMatchObject({ key: 'coin:SOL-USDT', changePct: 12 });
+    const n = JSON.parse(await tools.find((x) => x.name === 'get_news')!.run({ key: 'coin:BTC-USDT' }, { emit() {} }));
+    expect(n[0]).toMatchObject({ title: '비트코인 소식', source: '한경' });
+  });
+
   test('submit tool rejects opinion outside choices', () => {
     const tool = makeSubmitAnalysisTool(['매수', '관망'], () => {});
     const base = { confidence: '중간', summary: 's', reasons: ['r'], risks: ['k'], news: [] };

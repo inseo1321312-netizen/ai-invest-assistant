@@ -135,7 +135,7 @@ export async function* runTimingAnalysis(
   ].join('\n\n');
 
   let submitted: AnalysisBody | null = null;
-  const tools = [...buildMarketTools(deps.market), makeSubmitAnalysisTool(choices, (a) => { submitted = a; })];
+  const tools = [...buildMarketTools(deps.market, deps), makeSubmitAnalysisTool(choices, (a) => { submitted = a; })];
   const base = {
     provider: args.provider, tier, purpose: 'interactive' as const,
     instructions: prompts.ANALYSIS, tools, webSearch: { maxUses: 3 },
