@@ -8,6 +8,8 @@ import { createSentiment } from './market/sentiment.js';
 import { createInstrumentCatalog } from './market/catalog.js';
 import { downloadMasters } from './market/masters.js';
 import { createUpbitClient } from './market/upbit.js';
+import { createTrending } from './market/trending.js';
+import { createMarketOverview } from './market/overview.js';
 import { createOkxClient } from './market/okx.js';
 import { createKisClient } from './market/kis.js';
 import { createMarketService } from './market/service.js';
@@ -66,6 +68,10 @@ async function main() {
   const market = createMarketService({ okx, kis, db, now, fx: () => getUsdKrw({ db, now }) });
   const upbit = createUpbitClient({ fetch });
   const instruments = createInstrumentCatalog({ now, loadMasters: () => downloadMasters(fetch), okx, upbit });
+  const kisOrNull = config.kis ? kis : null;
+  const sentiment = createSentiment({ fetch, now });
+  const trending = createTrending({ okx, kis: kisOrNull, instruments, now });
+  const overview = createMarketOverview({ kis: kisOrNull, fx: () => getUsdKrw({ db, now }), sentiment, upbit, okx, now });
   const siwc = createSiwcTokenStore({ db, now });
   const budget = createBudget(db, now);
   const anthropic = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey, maxRetries: 0 }) : null;
@@ -98,8 +104,8 @@ async function main() {
   const app = await buildApp({
     config, db, now, market, connected: { kis: config.kis !== null }, siwc, runAi: router.runAi,
     push, runBriefing, catchUp, settings: { router, budget }, catalog, persistence, checkClaude,
-    sentiment: createSentiment({ fetch, now: Date.now }),
-    instruments,
+    sentiment,
+    instruments, trending, overview,
     webDist: path.resolve(import.meta.dirname, '../../web/dist'),
   });
   startScheduler({ briefing: runBriefing });

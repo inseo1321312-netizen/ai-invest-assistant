@@ -28,6 +28,9 @@ export function fakeKis(over: Partial<KisClient> = {}): KisClient {
   return {
     async getCandles() { return []; },
     async getQuote(inst) { return { instrument: inst, price: inst.market === 'kr' ? 70000 : 200, changePct24h: 0, currency: inst.market === 'kr' ? 'KRW' : 'USD', time: 0 }; },
+    async getRanking() { return []; },
+    async getIndex() { return { value: 0, changePct: 0 }; },
+    async getUsIndex() { return { value: 0, changePct: 0 }; },
     ...over,
   };
 }

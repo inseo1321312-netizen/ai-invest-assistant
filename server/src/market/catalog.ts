@@ -11,6 +11,8 @@ export interface InstrumentCatalog {
   /** 화면에 보일 이름. 불러오기 전이거나 모르면 null */
   nameOf(key: string): string | null;
   koreanCoinName(base: string): string | null;
+  /** 국내 종목 한글명(정확히 같은 이름)으로 6자리 코드를 찾는다 */
+  findKrCode(name: string): string | null;
   warm(): Promise<void>;
 }
 
@@ -29,6 +31,7 @@ export function createInstrumentCatalog(deps: {
   let coins: Entry[] = [];
   const names = new Map<string, string>();
   const coinKo = new Map<string, string>();
+  const krByName = new Map<string, string>();
   let loadedAt = 0;
   let loading: Promise<void> | null = null;
 
@@ -43,6 +46,8 @@ export function createInstrumentCatalog(deps: {
     if (next.length) {
       stocks = next;
       for (const e of next) names.set(e.hit.key, e.hit.name);
+      krByName.clear();
+      for (const r of m.kr) if (!krByName.has(r.name)) krByName.set(r.name, r.code);
     }
   }
 
@@ -114,6 +119,7 @@ export function createInstrumentCatalog(deps: {
     },
 
     koreanCoinName: (base) => coinKo.get(base) ?? null,
+    findKrCode: (name) => krByName.get(name.trim()) ?? null,
     warm: () => ensure(),
   };
 }

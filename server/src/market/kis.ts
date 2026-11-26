@@ -12,9 +12,18 @@ const REFRESH_MARGIN_MS = 10 * 60 * 1000;
 
 export class KisError extends Error {}
 
+export interface RankRow { code: string | null; symbol: string | null; exchange: UsExchange | null; name: string; price: number; changePct: number; value: number | null }
+export interface IndexQuote { value: number; changePct: number }
+
 export interface KisClient {
   getCandles(inst: Instrument, bar: Bar, limit: number): Promise<Candle[]>;
   getQuote(inst: Instrument): Promise<Quote>;
+  /** 지금 뜨는 종목: 상승률(gainers) 또는 거래대금(value) 순위. 미국은 세 거래소를 합친다. */
+  getRanking(market: 'kr' | 'us', kind: 'gainers' | 'value'): Promise<RankRow[]>;
+  /** 코스피 0001, 코스닥 1001 */
+  getIndex(code: '0001' | '1001'): Promise<IndexQuote>;
+  /** S&P500 SPX, 나스닥 종합 COMP */
+  getUsIndex(symbol: 'SPX' | 'COMP'): Promise<IndexQuote>;
 }
 
 interface StoredToken { token: string; expiresAt: number }
@@ -37,7 +46,9 @@ function ymdKst(ms: number): string {
   return d.toISOString().slice(0, 10).replace(/-/g, '');
 }
 
-const BALANCE_EXCHANGE: Record<string, UsExchange> = { NASD: 'NAS', NAS: 'NAS', NYSE: 'NYS', NYS: 'NYS', AMEX: 'AMS', AMS: 'AMS' };
+const US_EXCHANGES: UsExchange[] = ['NAS', 'NYS', 'AMS'];
+const RANK_LIMIT = 20;
+const text = (s: unknown): string | null => (typeof s === 'string' && s.trim() ? s.trim() : null);
 
 /** 1분봉 → 더 큰 분봉으로 묶는다(시작 시각 기준). */
 function aggregate(candles: Candle[], seconds: number): Candle[] {
@@ -213,7 +224,62 @@ export function createKisClient(opts: {
     return dedupeSort(out).slice(-limit);
   }
 
+  async function domesticRanking(kind: 'gainers' | 'value'): Promise<RankRow[]> {
+    if (kind === 'value') {
+      const { body } = await request('/uapi/domestic-stock/v1/quotations/volume-rank', 'FHPST01710000', {
+        FID_COND_MRKT_DIV_CODE: 'J', FID_COND_SCR_DIV_CODE: '20171', FID_INPUT_ISCD: '0000', FID_DIV_CLS_CODE: '0', FID_BLNG_CLS_CODE: '3',
+        FID_TRGT_CLS_CODE: '111111111', FID_TRGT_EXLS_CLS_CODE: '000000', FID_INPUT_PRICE_1: '', FID_INPUT_PRICE_2: '', FID_VOL_CNT: '', FID_INPUT_DATE_1: '',
+      });
+      return rows(body.output as unknown as Row[]).map((r) => ({
+        code: text(r.mksc_shrn_iscd), symbol: null, exchange: null, name: text(r.hts_kor_isnm) ?? '', price: num(r.stck_prpr), changePct: num(r.prdy_ctrt), value: num(r.acml_tr_pbmn) || null,
+      })).filter((r) => r.name).slice(0, RANK_LIMIT);
+    }
+    const { body } = await request('/uapi/domestic-stock/v1/ranking/fluctuation', 'FHPST01700000', {
+      fid_cond_mrkt_div_code: 'J', fid_cond_scr_div_code: '20170', fid_input_iscd: '0000', fid_rank_sort_cls_code: '0', fid_input_cnt_1: '0', fid_prc_cls_code: '1',
+      fid_input_price_1: '', fid_input_price_2: '', fid_vol_cnt: '', fid_trgt_cls_code: '0', fid_trgt_exls_cls_code: '0', fid_div_cls_code: '0', fid_rsfl_rate1: '', fid_rsfl_rate2: '',
+    });
+    // 공식 문서에는 종목코드 필드가 없다. 있으면 쓰고, 없으면 이름으로 찾는다(trending.ts).
+    return rows(body.output as unknown as Row[]).map((r) => ({
+      code: text(r.stck_shrn_iscd) ?? text(r.mksc_shrn_iscd), symbol: null, exchange: null, name: text(r.hts_kor_isnm) ?? '', price: num(r.stck_prpr), changePct: num(r.prdy_ctrt), value: null,
+    })).filter((r) => r.name).slice(0, RANK_LIMIT);
+  }
+
+  async function overseasRanking(kind: 'gainers' | 'value'): Promise<RankRow[]> {
+    const settled = await Promise.allSettled(US_EXCHANGES.map(async (ex) => {
+      const { body } = kind === 'gainers'
+        ? await request('/uapi/overseas-stock/v1/ranking/updown-rate', 'HHDFS76290000', { AUTH: '', EXCD: ex, NDAY: '0', GUBN: '1', VOL_RANG: '0', KEYB: '' })
+        : await request('/uapi/overseas-stock/v1/ranking/trade-pbmn', 'HHDFS76320010', { AUTH: '', EXCD: ex, NDAY: '0', VOL_RANG: '0', PRC1: '', PRC2: '', KEYB: '' });
+      return rows(body.output2).map((r): RankRow => ({
+        code: null, symbol: text(r.symb), exchange: ex, name: text(r.name) ?? text(r.ename) ?? text(r.symb) ?? '', price: num(r.last), changePct: num(r.rate), value: num(r.tamt) || null,
+      })).filter((r) => r.symbol && /^[A-Z0-9.-]{1,10}$/.test(r.symbol));
+    }));
+    const ok = settled.filter((s): s is PromiseFulfilledResult<RankRow[]> => s.status === 'fulfilled');
+    if (ok.length === 0) throw new KisError('미국 순위를 가져오지 못했습니다');
+    const all = ok.flatMap((s) => s.value);
+    all.sort((a, b) => (kind === 'gainers' ? b.changePct - a.changePct : (b.value ?? 0) - (a.value ?? 0)));
+    return all.slice(0, RANK_LIMIT);
+  }
+
   return {
+    async getRanking(market, kind) {
+      return market === 'kr' ? domesticRanking(kind) : overseasRanking(kind);
+    },
+
+    async getIndex(code) {
+      const { body } = await request('/uapi/domestic-stock/v1/quotations/inquire-index-price', 'FHPUP02100000', { FID_COND_MRKT_DIV_CODE: 'U', FID_INPUT_ISCD: code });
+      const o = body.output ?? {};
+      return { value: num(o.bstp_nmix_prpr), changePct: num(o.bstp_nmix_prdy_ctrt) };
+    },
+
+    async getUsIndex(symbol) {
+      const t = now();
+      const { body } = await request('/uapi/overseas-price/v1/quotations/inquire-daily-chartprice', 'FHKST03030100', {
+        FID_COND_MRKT_DIV_CODE: 'N', FID_INPUT_ISCD: symbol, FID_INPUT_DATE_1: ymdKst(t - 10 * 86400_000), FID_INPUT_DATE_2: ymdKst(t), FID_PERIOD_DIV_CODE: 'D',
+      });
+      const o = (Array.isArray(body.output1) ? body.output1[0] : body.output1) ?? {};
+      return { value: num(o.ovrs_nmix_prpr), changePct: num(o.prdy_ctrt) };
+    },
+
     async getCandles(inst, bar, limit) {
       if (inst.market === 'kr') {
         if (bar === '1D') return domesticDaily(inst.symbol, 'D', limit);

@@ -20,6 +20,8 @@ import type { ModelCatalog } from './ai/modelCatalog.js';
 import { registerDiagnoseRoutes } from './http/diagnoseRoutes.js';
 import { registerInfoRoutes } from './http/infoRoutes.js';
 import type { InstrumentCatalog } from './market/catalog.js';
+import type { MarketOverview } from './market/overview.js';
+import type { Trending } from './market/trending.js';
 import type { Persistence } from './persist.js';
 
 export interface AppDeps {
@@ -42,6 +44,10 @@ export interface AppDeps {
   checkClaude?: (() => Promise<void>) | null;
   /** 종목 이름·검색(코인·한국·미국) */
   instruments?: InstrumentCatalog | null;
+  /** 지금 뜨는 종목 */
+  trending?: Trending | null;
+  /** 오늘 시장 한눈에 */
+  overview?: MarketOverview | null;
   /** 코인 공포·탐욕 지수 */
   sentiment?: (() => Promise<Sentiment | null>) | null;
 }

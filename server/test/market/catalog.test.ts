@@ -91,3 +91,10 @@ describe('upbit client', () => {
     expect(p.get('ETH')).toBe(4000000);
   });
 });
+
+test('findKrCode looks up a Korean stock by exact name', async () => {
+  const c = make();
+  await c.warm();
+  expect(c.findKrCode('삼성전자')).toBe('005930');
+  expect(c.findKrCode('없는회사')).toBeNull();
+});
