@@ -8,8 +8,8 @@ export interface Config {
   sessionSecret: string;
   anthropicApiKey: string | null;
   openaiApiKey: string | null;
-  okx: { key: string; secret: string; passphrase: string } | null;
-  kis: { appKey: string; appSecret: string; accountNo: string; productCode: string } | null;
+  /** 한국투자증권 시세 조회용 앱키. 계좌번호는 쓰지 않는다(보기 전용) */
+  kis: { appKey: string; appSecret: string } | null;
   vapid: { publicKey: string; privateKey: string; subject: string } | null;
   /** 스냅샷을 저장할 Postgres(Neon) 주소. 없으면 디스크에만 저장 */
   databaseUrl: string | null;
@@ -27,13 +27,8 @@ const schema = z.object({
   SESSION_SECRET: z.string({ error: 'SESSION_SECRET이 필요합니다' }).min(32, 'SESSION_SECRET은 32자 이상이어야 합니다'),
   ANTHROPIC_API_KEY: opt,
   OPENAI_API_KEY: opt,
-  OKX_API_KEY: opt,
-  OKX_API_SECRET: opt,
-  OKX_API_PASSPHRASE: opt,
   KIS_APP_KEY: opt,
   KIS_APP_SECRET: opt,
-  KIS_ACCOUNT_NO: opt,
-  KIS_ACCOUNT_PRODUCT: opt,
   VAPID_PUBLIC_KEY: opt,
   VAPID_PRIVATE_KEY: opt,
   VAPID_SUBJECT: opt,
@@ -57,12 +52,7 @@ export function loadConfig(env: NodeJS.ProcessEnv | Record<string, string | unde
     sessionSecret: e.SESSION_SECRET,
     anthropicApiKey: e.ANTHROPIC_API_KEY,
     openaiApiKey: e.OPENAI_API_KEY,
-    okx: e.OKX_API_KEY && e.OKX_API_SECRET && e.OKX_API_PASSPHRASE
-      ? { key: e.OKX_API_KEY, secret: e.OKX_API_SECRET, passphrase: e.OKX_API_PASSPHRASE }
-      : null,
-    kis: e.KIS_APP_KEY && e.KIS_APP_SECRET && e.KIS_ACCOUNT_NO && e.KIS_ACCOUNT_PRODUCT
-      ? { appKey: e.KIS_APP_KEY, appSecret: e.KIS_APP_SECRET, accountNo: e.KIS_ACCOUNT_NO, productCode: e.KIS_ACCOUNT_PRODUCT }
-      : null,
+    kis: e.KIS_APP_KEY && e.KIS_APP_SECRET ? { appKey: e.KIS_APP_KEY, appSecret: e.KIS_APP_SECRET } : null,
     vapid: e.VAPID_PUBLIC_KEY && e.VAPID_PRIVATE_KEY && e.VAPID_SUBJECT
       ? { publicKey: e.VAPID_PUBLIC_KEY, privateKey: e.VAPID_PRIVATE_KEY, subject: e.VAPID_SUBJECT }
       : null,

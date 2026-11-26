@@ -4,10 +4,10 @@ import { kstDay } from '../ai/budget.js';
 import * as prompts from '../ai/prompts.js';
 import type { AiTool } from '../ai/types.js';
 import { summarizeIndicators } from '../market/indicators.js';
-import type { Holding, MarketId } from '../market/types.js';
+import type { Instrument, MarketId } from '../market/types.js';
 import { BAR_SECONDS, horizonBars, instrumentKey, MARKETS } from '../market/types.js';
 import type { Push } from '../push.js';
-import { holdingContext, lastClosedTime, saveAnalysis } from './analysis.js';
+import { lastClosedTime, saveAnalysis } from './analysis.js';
 import { type FeatureDeps, fmtNum } from './deps.js';
 import { CONFIDENCE, opinionChoices, type Confidence } from './tools.js';
 
@@ -17,7 +17,6 @@ export type FeedKind = 'briefing' | 'breaking' | 'spike' | 'liquidation';
 export interface FeedItem { id: number; createdAt: number; day: string; kind: FeedKind; market: MarketId; key: string | null; title: string; body: string; isBreaking: boolean }
 
 const MARKET_NAME: Record<MarketId, string> = { coin: '코인', kr: '한국주식', us: '미국주식' };
-const LIQ_ALERT_MS = 6 * 3600_000;
 
 export function addFeedItem(db: Db, now: () => number, item: Omit<FeedItem, 'id' | 'createdAt' | 'day'>): void {
   const t = now();
@@ -48,24 +47,23 @@ export function isMarketOpen(market: MarketId, ms: number): boolean {
 
 interface BriefingItem { key: string; headline: string; detail: string; isBreaking: boolean; opinion: string; confidence: Confidence; reasons: string[]; risks: string[] }
 
-async function briefTab(deps: BriefingDeps, market: MarketId, holdings: Holding[]): Promise<BriefingItem[]> {
+async function briefTab(deps: BriefingDeps, market: MarketId, instruments: Instrument[]): Promise<BriefingItem[]> {
   const blocks: string[] = [];
   const choices = new Map<string, string[]>();
   const dataTimes = new Map<string, number>();
   const nowSec = Math.floor(deps.now() / 1000);
-  for (const h of holdings) {
-    const key = instrumentKey(h.instrument);
+  for (const inst of instruments) {
+    const key = instrumentKey(inst);
     if (choices.has(key)) continue;
-    choices.set(key, opinionChoices(h, h.instrument));
+    choices.set(key, opinionChoices(inst));
     const bars = horizonBars(market, 'swing');
-    const quote = await deps.market.getQuote(h.instrument).catch(() => null);
-    const candles = await deps.market.getCandles(h.instrument, bars.primary, bars.primaryLimit).catch(() => []);
+    const quote = await deps.market.getQuote(inst).catch(() => null);
+    const candles = await deps.market.getCandles(inst, bars.primary, bars.primaryLimit).catch(() => []);
     const dt = lastClosedTime(candles, BAR_SECONDS[bars.primary], nowSec);
     if (dt !== null) dataTimes.set(key, dt);
     blocks.push([
-      `## ${key}${h.instrument.name ? ` (${h.instrument.name})` : ''}`,
+      `## ${key}${inst.name ? ` (${inst.name})` : ''}`,
       `현재가: ${quote ? `${fmtNum(quote.price)} ${quote.currency}, 24시간 ${quote.changePct24h.toFixed(2)}%` : '알 수 없음'}`,
-      holdingContext(h, quote?.price ?? null),
       `스윙 지표(${bars.primary}): ${JSON.stringify(summarizeIndicators(candles))}`,
       `고를 수 있는 의견: ${choices.get(key)!.join(' / ')}`,
     ].join('\n'));
@@ -84,7 +82,7 @@ async function briefTab(deps: BriefingDeps, market: MarketId, holdings: Holding[
     }),
     async run(v) { submitted = v; return '제출되었습니다'; },
   };
-  const userText = `${MARKET_NAME[market]} 보유 종목 아침 브리핑을 만들어 주세요.\n\n${blocks.join('\n\n')}`;
+  const userText = `${MARKET_NAME[market]} 즐겨찾기 종목 아침 브리핑을 만들어 주세요.\n\n${blocks.join('\n\n')}`;
   const base = { provider: 'claude' as const, tier: 'standard' as const, purpose: 'scheduled' as const, instructions: prompts.BRIEFING, tools: [submit], webSearch: { maxUses: 5 } };
   let history: { role: 'user' | 'assistant'; text: string }[] = [];
   let text = userText;
@@ -121,9 +119,9 @@ async function briefTab(deps: BriefingDeps, market: MarketId, holdings: Holding[
 export async function runMorningBriefing(deps: BriefingDeps): Promise<void> {
   const breaking: BriefingItem[] = [];
   for (const market of MARKETS) {
-    const holdings = await deps.market.getHoldings(market).catch(() => [] as Holding[]);
-    if (holdings.length === 0) continue;
-    const items = await briefTab(deps, market, holdings);
+    const favorites = deps.market.listWatchlist(market);
+    if (favorites.length === 0) continue;
+    const items = await briefTab(deps, market, favorites);
     breaking.push(...items.filter((i) => i.isBreaking));
   }
   if (breaking.length) {
@@ -135,68 +133,11 @@ export async function runMorningBriefing(deps: BriefingDeps): Promise<void> {
   }
 }
 
-function recentlyAlerted(db: Db, key: string, kind: string, direction: string, sinceMs: number): boolean {
-  return Boolean(db.sql.prepare('SELECT 1 FROM alert_log WHERE key = ? AND kind = ? AND direction = ? AND sent_at >= ? LIMIT 1').get(key, kind, direction, sinceMs));
-}
-
-function kstDayStartMs(ms: number): number {
-  return Date.parse(`${kstDay(ms)}T00:00:00+09:00`);
-}
-
-export async function checkSpikesAndLiquidation(deps: BriefingDeps): Promise<void> {
-  const { db } = deps;
-  const log = db.sql.prepare('INSERT INTO alert_log (key, kind, direction, sent_at) VALUES (?, ?, ?, ?)');
-  for (const market of MARKETS) {
-    if (!isMarketOpen(market, deps.now())) continue;
-    const holdings = await deps.market.getHoldings(market).catch(() => [] as Holding[]);
-    for (const h of holdings) {
-      const key = instrumentKey(h.instrument);
-      const quote = await deps.market.getQuote(h.instrument).catch(() => null);
-      if (!quote) continue;
-      const name = h.instrument.name ?? h.instrument.symbol;
-
-      if (Math.abs(quote.changePct24h) >= 5) {
-        const direction = quote.changePct24h > 0 ? 'up' : 'down';
-        if (!recentlyAlerted(db, key, 'spike', direction, kstDayStartMs(deps.now()))) {
-          log.run(key, 'spike', direction, deps.now());
-          let reason = '';
-          for await (const ev of deps.runAi({
-            provider: 'claude', tier: 'light', purpose: 'scheduled', instructions: prompts.SPIKE, history: [],
-            userText: `${key} (${name})가 24시간 ${quote.changePct24h.toFixed(2)}% 움직였다. 현재가 ${fmtNum(quote.price)} ${quote.currency}.`,
-            tools: [], webSearch: { maxUses: 2 },
-          })) {
-            if (ev.type === 'done') reason = ev.text;
-          }
-          const pct = `${quote.changePct24h > 0 ? '+' : ''}${quote.changePct24h.toFixed(1)}%`;
-          const title = `${name} ${direction === 'up' ? '급등' : '급락'} ${pct}`;
-          const body = reason || '이유를 찾지 못했습니다';
-          addFeedItem(db, deps.now, { kind: 'spike', market, key, title, body, isBreaking: true });
-          await deps.push.sendAll({ title: `[속보] ${title}`, body, url: '/' });
-        }
-      }
-
-      const mark = h.markPrice ?? quote.price;
-      if (h.liqPrice && mark) {
-        const dist = Math.abs(mark - h.liqPrice) / mark;
-        if (dist <= 0.05 && !recentlyAlerted(db, key, 'liquidation', 'any', deps.now() - LIQ_ALERT_MS)) {
-          log.run(key, 'liquidation', 'any', deps.now());
-          const title = `청산 주의: ${name} 청산가까지 ${(dist * 100).toFixed(1)}%`;
-          const body = `${h.side === 'short' ? '숏' : '롱'} ${h.leverage ? `${fmtNum(h.leverage)}배 ` : ''}포지션 · 현재 ${fmtNum(mark)} / 청산가 ${fmtNum(h.liqPrice)} ${h.currency}`;
-          addFeedItem(db, deps.now, { kind: 'liquidation', market, key, title, body, isBreaking: true });
-          await deps.push.sendAll({ title: `[속보] ${title}`, body, url: '/' });
-        }
-      }
-    }
-  }
-}
-
-const SPIKE_EVERY_MS = 55 * 60_000;
 let catchUpRunning: Promise<void> | null = null;
 
 /**
  * 무료 서버는 앱을 열 때만 깨어나므로, 깨어날 때(그리고 앱이 소식을 불러갈 때) 밀린 작업을 한다.
  * - 오늘 08:00(한국 시간)이 지났는데 아침 브리핑이 없으면 한 번 만든다.
- * - 마지막 급변·청산 확인이 55분보다 오래됐으면 한 번 확인한다.
  */
 export function ensureCatchUp(deps: BriefingDeps): Promise<void> {
   if (!catchUpRunning) {
@@ -208,11 +149,6 @@ export function ensureCatchUp(deps: BriefingDeps): Promise<void> {
 async function runCatchUp(deps: BriefingDeps): Promise<void> {
   const { db } = deps;
   const t = deps.now();
-  const lastSpikes = db.kvGet<number>('catchup.spikesAt') ?? 0;
-  if (t - lastSpikes >= SPIKE_EVERY_MS) {
-    db.kvSet('catchup.spikesAt', t);
-    await checkSpikesAndLiquidation(deps).catch((err) => console.error('급변 확인 실패', err instanceof Error ? err.message : err));
-  }
   const day = kstDay(t);
   const kstHour = new Date(t + 9 * 3600_000).getUTCHours();
   const hasBriefing = listFeed(db, day).some((f) => f.kind === 'briefing');

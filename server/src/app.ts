@@ -25,7 +25,7 @@ export interface AppDeps {
   db: Db;
   now: () => number;
   market: MarketService;
-  connected: { okx: boolean; kis: boolean };
+  connected: { kis: boolean };
   badgeLookup?: BadgeLookup;
   siwc: SiwcTokenStore;
   runAi: RunAi;

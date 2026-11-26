@@ -25,20 +25,6 @@ export interface Candle { time: number; open: number; high: number; low: number;
 
 export interface Quote { instrument: Instrument; price: number; changePct24h: number; currency: Currency; time: number }
 
-export interface Holding {
-  instrument: Instrument;
-  quantity: number;
-  avgPrice: number;
-  currency: Currency;
-  source: 'okx' | 'kis' | 'manual';
-  side: 'long' | 'short' | null;
-  leverage: number | null;
-  liqPrice: number | null;
-  markPrice: number | null;
-  unrealizedPnl: number | null;
-  fundingRate: number | null;
-}
-
 export const HORIZON_BARS: Record<Horizon, { primary: Bar; primaryLimit: number; secondary: Bar; secondaryLimit: number }> = {
   scalp: { primary: '5m', primaryLimit: 288, secondary: '1H', secondaryLimit: 48 },
   swing: { primary: '4H', primaryLimit: 180, secondary: '1D', secondaryLimit: 120 },

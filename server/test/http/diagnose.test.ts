@@ -13,12 +13,12 @@ async function setup(over: Parameters<typeof testDeps>[0] = {}, okx = fakeOkx(),
 }
 
 test('diagnose reports each connection with Korean status', async () => {
-  const { app, cookie } = await setup({ connected: { okx: false, kis: true } }, fakeOkx(), fakeKis({ async getQuote() { throw new Error('down'); } }));
+  const { app, cookie } = await setup({ connected: { kis: true } }, fakeOkx(), fakeKis({ async getQuote() { throw new Error('down'); } }));
   const res = await app.inject({ method: 'GET', url: '/api/admin/diagnose', headers: { cookie } });
   expect(res.statusCode).toBe(200);
   const checks = Object.fromEntries(res.json().checks.map((c: { id: string; state: string; detail: string }) => [c.id, c]));
   expect(checks.okx).toMatchObject({ state: 'ok' });
-  expect(checks.okxAccount).toMatchObject({ state: 'off' });
+  expect(checks.okxAccount).toBeUndefined();
   expect(checks.kis).toMatchObject({ state: 'fail' });
   expect(checks.claude).toMatchObject({ state: 'off' });
   expect(checks.chatgpt).toMatchObject({ state: 'off' });

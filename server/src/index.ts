@@ -17,7 +17,7 @@ import { createGptAdapter } from './ai/gpt.js';
 import { createAiRouter } from './ai/router.js';
 import type { AiAdapter } from './ai/types.js';
 import { createPush } from './push.js';
-import { checkSpikesAndLiquidation, ensureCatchUp, runMorningBriefing } from './features/briefing.js';
+import { ensureCatchUp, runMorningBriefing } from './features/briefing.js';
 import { startScheduler } from './scheduler.js';
 import { createModelCatalog, fetchGptModels } from './ai/modelCatalog.js';
 import { createPgSnapshotStore, restoreSnapshot, startPersistence, type Persistence } from './persist.js';
@@ -58,7 +58,7 @@ async function main() {
   }
 
   const now = () => Date.now();
-  const okx = createOkxClient({ creds: config.okx });
+  const okx = createOkxClient();
   const kis = createKisClient({ creds: config.kis, db, now });
   const market = createMarketService({ okx, kis, db, now, fx: () => getUsdKrw({ db, now }) });
   const siwc = createSiwcTokenStore({ db, now });
@@ -91,12 +91,12 @@ async function main() {
   const checkClaude = anthropic ? async () => { await anthropic.models.list({ limit: 1 }); } : null;
 
   const app = await buildApp({
-    config, db, now, market, connected: { okx: config.okx !== null, kis: config.kis !== null }, siwc, runAi: router.runAi,
+    config, db, now, market, connected: { kis: config.kis !== null }, siwc, runAi: router.runAi,
     push, runBriefing, catchUp, settings: { router, budget }, catalog, persistence, checkClaude,
     sentiment: createSentiment({ fetch, now: Date.now }),
     webDist: path.resolve(import.meta.dirname, '../../web/dist'),
   });
-  startScheduler({ briefing: runBriefing, spikes: () => checkSpikesAndLiquidation(featureDeps) });
+  startScheduler({ briefing: runBriefing });
   await app.listen({ host: '0.0.0.0', port: config.port });
   console.log(`서버 시작: 포트 ${config.port}`);
   // 깨어나자마자 밀린 작업(오늘 브리핑, 급변 확인)을 뒤에서 한다

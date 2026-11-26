@@ -3,7 +3,7 @@ import * as prompts from '../ai/prompts.js';
 import type { AiEvent, ProviderId } from '../ai/types.js';
 import type { Badge, BadgeLookup } from '../http/marketRoutes.js';
 import { summarizeIndicators } from '../market/indicators.js';
-import type { Candle, Holding, Horizon, Instrument } from '../market/types.js';
+import type { Candle, Horizon } from '../market/types.js';
 import { BAR_SECONDS, HORIZON_LABEL, horizonBars, instrumentKey, parseInstrumentKey } from '../market/types.js';
 import { type FeatureDeps, fmtNum, kstDateTime } from './deps.js';
 import { buildMarketTools, candlesCsv, makeSubmitAnalysisTool, opinionChoices, type AnalysisBody } from './tools.js';
@@ -90,35 +90,6 @@ export function lastClosedTime(candles: Candle[], barSeconds: number, nowSec: nu
   return candles.at(-1)?.time ?? null;
 }
 
-export function holdingContext(h: Holding | null, price: number | null): string {
-  if (!h) return '내 보유: 없음';
-  const lines = [`내 보유: ${h.side ? (h.side === 'long' ? '롱' : '숏') + ' 포지션' : '현물'} 수량 ${fmtNum(h.quantity)}, 평균 단가 ${fmtNum(h.avgPrice)} ${h.currency}`];
-  if (price !== null && h.avgPrice) {
-    const pct = ((price - h.avgPrice) / h.avgPrice) * 100 * (h.side === 'short' ? -1 : 1);
-    lines.push(`평균 단가 대비 손익(가격 기준): ${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`);
-  }
-  if (h.leverage) lines.push(`레버리지 ${fmtNum(h.leverage)}배`);
-  if (h.liqPrice) {
-    const ref = price ?? h.markPrice;
-    const dist = ref ? (Math.abs(ref - h.liqPrice) / ref) * 100 : null;
-    lines.push(`청산가 ${fmtNum(h.liqPrice)}${dist !== null ? ` (현재가에서 ${dist.toFixed(2)}% 거리)` : ''}`);
-  }
-  if (h.side) lines.push(`펀딩비 ${h.fundingRate === null ? '알 수 없음' : `${(h.fundingRate * 100).toFixed(4)}% (8시간 기준)`}`);
-  return lines.join('\n');
-}
-
-/** known=false면 거래소·증권사 보유 조회가 실패해서 보유 여부를 모른다는 뜻 */
-export async function findHolding(deps: FeatureDeps, inst: Instrument): Promise<{ holding: Holding | null; known: boolean }> {
-  const key = instrumentKey(inst);
-  try {
-    const hs = await deps.market.getHoldings(inst.market);
-    return { holding: hs.find((h) => instrumentKey(h.instrument) === key) ?? null, known: true };
-  } catch {
-    const manual = deps.market.getManualHoldings(inst.market).find((h) => instrumentKey(h.instrument) === key) ?? null;
-    return { holding: manual, known: false };
-  }
-}
-
 export async function* runTimingAnalysis(
   deps: FeatureDeps,
   args: { key: string; horizon: Horizon; provider: ProviderId; deep: boolean },
@@ -150,15 +121,13 @@ export async function* runTimingAnalysis(
     return;
   }
 
-  const { holding, known: holdingKnown } = await findHolding(deps, inst);
   const quote = await deps.market.getQuote(inst).catch(() => null);
-  const choices = opinionChoices(holding, inst);
+  const choices = opinionChoices(inst);
   const userText = [
     `종목: ${args.key}${inst.name ? ` (${inst.name})` : ''}`,
     `분석 기간: ${HORIZON_TEXT[args.horizon]}`,
     `데이터 기준 시각: ${kstDateTime(dataTime)} (한국 시간, 마지막 마감 캔들)`,
     `현재가: ${quote ? `${fmtNum(quote.price)} ${quote.currency} (24시간 ${quote.changePct24h.toFixed(2)}%)` : '알 수 없음'}`,
-    holdingKnown ? holdingContext(holding, quote?.price ?? null) : `${holdingContext(holding, quote?.price ?? null)}\n(주의: 거래소·증권사 보유 정보를 확인하지 못했습니다. 보유 여부가 확실하지 않다고 답변에 밝혀 주세요.)`,
     `[주 차트 ${bars.primary}] 지표 요약: ${JSON.stringify(summarizeIndicators(primary))}`,
     `[보조 차트 ${bars.secondary}] 지표 요약: ${JSON.stringify(summarizeIndicators(secondary))}`,
     `[주 차트 ${bars.primary}] 최근 캔들 30개:\n${candlesCsv(primary.slice(-30))}`,
@@ -193,7 +162,7 @@ export async function* runTimingAnalysis(
   }
   const saved = saveAnalysis(deps.db, {
     ...(submitted as AnalysisBody), key: args.key, horizon: args.horizon, provider: args.provider, model, dataTime, createdAt: deps.now(), costUsd: cost,
-    origin: holdingKnown ? 'user' : 'unverified', tier,
+    origin: 'user', tier,
   });
   yield { type: 'analysis', analysis: saved, cached: false };
   yield { type: 'done', text: '', provider: args.provider, model, costUsd: cost };

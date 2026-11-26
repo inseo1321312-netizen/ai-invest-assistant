@@ -1,7 +1,7 @@
 import type { Config } from '../config.js';
 import type { Db } from '../db.js';
 import { assertReadPath } from './kisPaths.js';
-import type { Bar, Candle, Holding, Instrument, Quote, UsExchange } from './types.js';
+import type { Bar, Candle, Instrument, Quote, UsExchange } from './types.js';
 import { BAR_SECONDS, parseInstrumentKey } from './types.js';
 
 export { assertReadPath, KIS_READ_PATHS, KisBlockedError } from './kisPaths.js';
@@ -15,7 +15,6 @@ export class KisError extends Error {}
 export interface KisClient {
   getCandles(inst: Instrument, bar: Bar, limit: number): Promise<Candle[]>;
   getQuote(inst: Instrument): Promise<Quote>;
-  getHoldings(): Promise<Holding[]>;
 }
 
 interface StoredToken { token: string; expiresAt: number }
@@ -243,49 +242,6 @@ export function createKisClient(opts: {
       throw new KisError('주식 종목만 조회할 수 있습니다');
     },
 
-    async getHoldings() {
-      if (!opts.creds) return [];
-      const { accountNo, productCode } = opts.creds;
-      const out: Holding[] = [];
-      const base = { source: 'kis' as const, side: null, leverage: null, liqPrice: null, markPrice: null, unrealizedPnl: null, fundingRate: null };
-
-      let fk = '';
-      let nk = '';
-      let cont = '';
-      for (let page = 0; page < 5; page++) {
-        const { body, trCont } = await request('/uapi/domestic-stock/v1/trading/inquire-balance', 'TTTC8434R', {
-          CANO: accountNo, ACNT_PRDT_CD: productCode, AFHR_FLPR_YN: 'N', OFL_YN: '', INQR_DVSN: '02', UNPR_DVSN: '01',
-          FUND_STTL_ICLD_YN: 'N', FNCG_AMT_AUTO_RDPT_YN: 'N', PRCS_DVSN: '00', CTX_AREA_FK100: fk, CTX_AREA_NK100: nk,
-        }, cont);
-        for (const r of rows(body.output1)) {
-          if (num(r.hldg_qty) <= 0 || !r.pdno) continue;
-          const inst = { ...parseInstrumentKey(`kr:${r.pdno}`), name: r.prdt_name ?? null };
-          out.push({ instrument: inst, quantity: num(r.hldg_qty), avgPrice: num(r.pchs_avg_pric), currency: 'KRW', ...base });
-        }
-        if (trCont !== 'M' && trCont !== 'F') break;
-        fk = body.ctx_area_fk100 ?? '';
-        nk = body.ctx_area_nk100 ?? '';
-        cont = 'N';
-      }
-
-      fk = ''; nk = ''; cont = '';
-      for (let page = 0; page < 5; page++) {
-        const { body, trCont } = await request('/uapi/overseas-stock/v1/trading/inquire-balance', 'TTTS3012R', {
-          CANO: accountNo, ACNT_PRDT_CD: productCode, OVRS_EXCG_CD: 'NASD', TR_CRCY_CD: 'USD', CTX_AREA_FK200: fk, CTX_AREA_NK200: nk,
-        }, cont);
-        for (const r of rows(body.output1)) {
-          const ex = BALANCE_EXCHANGE[r.ovrs_excg_cd ?? ''];
-          if (!ex || !r.ovrs_pdno || num(r.ovrs_cblc_qty) <= 0) continue;
-          const inst = { ...parseInstrumentKey(`us:${ex}:${r.ovrs_pdno}`), name: r.ovrs_item_name ?? null };
-          out.push({ instrument: inst, quantity: num(r.ovrs_cblc_qty), avgPrice: num(r.pchs_avg_pric), currency: 'USD', ...base });
-        }
-        if (trCont !== 'M' && trCont !== 'F') break;
-        fk = body.ctx_area_fk200 ?? '';
-        nk = body.ctx_area_nk200 ?? '';
-        cont = 'N';
-      }
-      return out;
-    },
   };
 }
 

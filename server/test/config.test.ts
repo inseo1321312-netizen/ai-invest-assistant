@@ -11,16 +11,13 @@ test('requires SESSION_SECRET of 32+ chars', () => {
   expect(() => loadConfig({ APP_PASSWORD: 'p'.repeat(12), SESSION_SECRET: 'short' })).toThrow(/SESSION_SECRET/);
 });
 
-test('okx is null unless all three values are set', () => {
-  expect(loadConfig({ ...base, OKX_API_KEY: 'k' }).okx).toBeNull();
-  expect(loadConfig({ ...base, OKX_API_KEY: 'k', OKX_API_SECRET: 's', OKX_API_PASSPHRASE: 'p' }).okx)
-    .toEqual({ key: 'k', secret: 's', passphrase: 'p' });
+test('OKX keys are no longer part of the config', () => {
+  expect('okx' in loadConfig({ ...base, OKX_API_KEY: 'k', OKX_API_SECRET: 's', OKX_API_PASSPHRASE: 'p' })).toBe(false);
 });
 
-test('kis needs all four values', () => {
-  expect(loadConfig({ ...base, KIS_APP_KEY: 'a', KIS_APP_SECRET: 'b', KIS_ACCOUNT_NO: '12345678' }).kis).toBeNull();
-  expect(loadConfig({ ...base, KIS_APP_KEY: 'a', KIS_APP_SECRET: 'b', KIS_ACCOUNT_NO: '12345678', KIS_ACCOUNT_PRODUCT: '01' }).kis)
-    .toEqual({ appKey: 'a', appSecret: 'b', accountNo: '12345678', productCode: '01' });
+test('kis needs only app key and secret', () => {
+  expect(loadConfig({ ...base, KIS_APP_KEY: 'a' }).kis).toBeNull();
+  expect(loadConfig({ ...base, KIS_APP_KEY: 'a', KIS_APP_SECRET: 'b' }).kis).toEqual({ appKey: 'a', appSecret: 'b' });
 });
 
 test('defaults port 8080 and dataDir /data', () => {

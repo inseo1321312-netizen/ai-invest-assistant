@@ -17,9 +17,7 @@ export function fakeOkx(over: Partial<OkxClient> = {}) {
     calls,
     async getCandles(instId, bar, limit) { calls.push({ instId, bar, limit }); return series(Math.floor(Date.UTC(2026, 10, 26) / 1000), limit); },
     async getQuote(instId) { return { instrument: parseInstrumentKey(`coin:${instId}`), price: 100, changePct24h: 1, currency: 'USDT', time: 0 }; },
-    async getHoldings() { return []; },
     async getFundingRate() { return null; },
-    unsupported: () => [],
     ...over,
   };
   return okx;
@@ -29,7 +27,6 @@ export function fakeKis(over: Partial<KisClient> = {}): KisClient {
   return {
     async getCandles() { return []; },
     async getQuote(inst) { return { instrument: inst, price: inst.market === 'kr' ? 70000 : 200, changePct24h: 0, currency: inst.market === 'kr' ? 'KRW' : 'USD', time: 0 }; },
-    async getHoldings() { return []; },
     ...over,
   };
 }

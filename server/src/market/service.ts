@@ -1,39 +1,22 @@
 import type { Db } from '../db.js';
 import type { KisClient } from './kis.js';
 import type { OkxClient } from './okx.js';
-import type { Bar, Candle, Holding, Instrument, MarketId, Quote } from './types.js';
-import { BAR_SECONDS, instrumentKey, MARKET_CURRENCY, parseInstrumentKey } from './types.js';
-
-export interface ManualHoldingInput {
-  key: string;
-  quantity: number;
-  avgPrice: number;
-  side: 'long' | 'short' | null;
-  leverage: number | null;
-}
+import type { Bar, Candle, Instrument, MarketId, Quote } from './types.js';
+import { BAR_SECONDS, instrumentKey, parseInstrumentKey } from './types.js';
 
 export interface MarketService {
   getCandles(inst: Instrument, bar: Bar, limit: number): Promise<Candle[]>;
   getQuote(inst: Instrument): Promise<Quote>;
-  /** 자동(OKX/KIS) 보유. 출처 오류는 그대로 던진다. */
-  getAutoHoldings(market: MarketId): Promise<Holding[]>;
-  getManualHoldings(market: MarketId): (Holding & { manualId: number })[];
-  getHoldings(market: MarketId): Promise<Holding[]>;
   listWatchlist(market: MarketId): Instrument[];
   addWatch(key: string): void;
   removeWatch(key: string): void;
-  addManualHolding(h: ManualHoldingInput): number;
-  removeManualHolding(id: number): void;
   usdKrw(): Promise<number | null>;
-  /** 사용자에게 알릴 안내(예: 지원하지 않아 뺀 OKX 상품) */
-  notices(market: MarketId): string[];
 }
 
 const TTL_MS: Record<Bar, number> = {
   '1m': 30_000, '5m': 30_000, '15m': 120_000, '1H': 120_000, '4H': 600_000, '1D': 1_800_000, '1W': 1_800_000,
 };
 const QUOTE_TTL_MS = 10_000;
-const HOLDINGS_TTL_MS = 30_000;
 
 export function createMarketService(deps: {
   okx: OkxClient;
@@ -52,12 +35,8 @@ export function createMarketService(deps: {
     watchAdd: db.sql.prepare('INSERT OR IGNORE INTO watchlist (key, market, added_at) VALUES (?, ?, ?)'),
     watchDel: db.sql.prepare('DELETE FROM watchlist WHERE key = ?'),
     watchList: db.sql.prepare('SELECT key FROM watchlist WHERE market = ? ORDER BY added_at'),
-    manualAdd: db.sql.prepare('INSERT INTO manual_holdings (key, market, quantity, avg_price, currency, side, leverage) VALUES (?, ?, ?, ?, ?, ?, ?)'),
-    manualDel: db.sql.prepare('DELETE FROM manual_holdings WHERE id = ?'),
-    manualList: db.sql.prepare('SELECT id, key, quantity, avg_price, currency, side, leverage FROM manual_holdings WHERE market = ? ORDER BY id'),
   };
   const quoteCache = new Map<string, { at: number; quote: Quote }>();
-  const holdingsCache = new Map<string, { at: number; holdings: Holding[] }>();
 
   async function fetchCandles(inst: Instrument, bar: Bar, limit: number): Promise<Candle[]> {
     return inst.market === 'coin' ? deps.okx.getCandles(inst.symbol, bar, limit) : deps.kis.getCandles(inst, bar, limit);
@@ -109,45 +88,6 @@ export function createMarketService(deps: {
       return quote;
     },
 
-    async getAutoHoldings(market) {
-      const hit = holdingsCache.get(market);
-      if (hit && now() - hit.at < HOLDINGS_TTL_MS) return hit.holdings;
-      let holdings: Holding[];
-      if (market === 'coin') holdings = await deps.okx.getHoldings();
-      else {
-        const all = await deps.kis.getHoldings();
-        for (const m of ['kr', 'us'] as const) {
-          holdingsCache.set(m, { at: now(), holdings: all.filter((h) => h.instrument.market === m) });
-        }
-        holdings = all.filter((h) => h.instrument.market === market);
-      }
-      holdingsCache.set(market, { at: now(), holdings });
-      return holdings;
-    },
-
-    getManualHoldings(market) {
-      const rows = q.manualList.all(market) as { id: number; key: string; quantity: number; avg_price: number; currency: string; side: string | null; leverage: number | null }[];
-      return rows.map((r) => ({
-        manualId: r.id,
-        instrument: parseInstrumentKey(r.key),
-        quantity: r.quantity,
-        avgPrice: r.avg_price,
-        currency: r.currency as Holding['currency'],
-        source: 'manual' as const,
-        side: (r.side as Holding['side']) ?? null,
-        leverage: r.leverage,
-        liqPrice: null,
-        markPrice: null,
-        unrealizedPnl: null,
-        fundingRate: null,
-      }));
-    },
-
-    async getHoldings(market) {
-      const auto = await this.getAutoHoldings(market);
-      return [...auto, ...this.getManualHoldings(market)];
-    },
-
     listWatchlist(market) {
       return (q.watchList.all(market) as { key: string }[]).map((r) => parseInstrumentKey(r.key));
     },
@@ -161,22 +101,6 @@ export function createMarketService(deps: {
       q.watchDel.run(key);
     },
 
-    addManualHolding(h) {
-      const inst = parseInstrumentKey(h.key);
-      const res = q.manualAdd.run(instrumentKey(inst), inst.market, h.quantity, h.avgPrice, MARKET_CURRENCY[inst.market], h.side, h.leverage);
-      return Number(res.lastInsertRowid);
-    },
-
-    removeManualHolding(id) {
-      q.manualDel.run(id);
-    },
-
     usdKrw: deps.fx,
-
-    notices(market) {
-      if (market !== 'coin') return [];
-      const u = deps.okx.unsupported();
-      return u.length ? [`OKX의 일부 상품(${u.join(', ')})은 아직 지원하지 않아 목록에서 빠졌어요`] : [];
-    },
   };
 }

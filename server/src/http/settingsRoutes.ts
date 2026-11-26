@@ -22,7 +22,7 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: { config: Con
     models: router.models(),
     gptMode: router.gptMode(),
     budget: budget.limits(),
-    keys: { claude: c.anthropicApiKey !== null, openai: c.openaiApiKey !== null, okx: c.okx !== null, kis: c.kis !== null, push: c.vapid !== null },
+    keys: { claude: c.anthropicApiKey !== null, openai: c.openaiApiKey !== null, kis: c.kis !== null, push: c.vapid !== null },
   });
 
   app.get('/api/settings', async () => view());

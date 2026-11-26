@@ -11,7 +11,7 @@ test('get settings returns models, gpt mode, budget and no secrets', async () =>
   const res = await app.inject({ method: 'GET', url: '/api/settings', headers: { cookie } });
   expect(res.json()).toEqual({
     models: DEFAULT_MODELS, gptMode: 'siwc', budget: DEFAULT_LIMITS,
-    keys: { claude: false, openai: false, okx: false, kis: false, push: false },
+    keys: { claude: false, openai: false, kis: false, push: false },
   });
   expect(res.body).not.toMatch(/sk-|secret/i);
 });

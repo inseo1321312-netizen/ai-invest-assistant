@@ -16,7 +16,7 @@ function withTimeout<T>(p: Promise<T>): Promise<T> {
 /** 설정 화면의 "연결 점검": 각 연결이 되는지 한국어로 알려준다. 비밀값은 돌려주지 않는다. */
 export function registerDiagnoseRoutes(app: FastifyInstance, deps: {
   market: MarketService;
-  connected: { okx: boolean; kis: boolean };
+  connected: { kis: boolean };
   siwc: SiwcTokenStore;
   persistence?: Persistence | null;
   checkClaude?: (() => Promise<void>) | null;
@@ -32,21 +32,12 @@ export function registerDiagnoseRoutes(app: FastifyInstance, deps: {
         }
       })(),
       (async (): Promise<Check> => {
-        if (!deps.connected.okx) return { id: 'okxAccount', label: 'OKX 내 계정', state: 'off', detail: 'OKX 키가 없어요(보유 코인 자동 불러오기 꺼짐)' };
-        try {
-          const hs = await withTimeout(deps.market.getAutoHoldings('coin'));
-          return { id: 'okxAccount', label: 'OKX 내 계정', state: 'ok', detail: `보유 ${hs.length}개 불러옴` };
-        } catch {
-          return { id: 'okxAccount', label: 'OKX 내 계정', state: 'fail', detail: 'OKX 키·시크릿·패스프레이즈를 확인하세요' };
-        }
-      })(),
-      (async (): Promise<Check> => {
-        if (!deps.connected.kis) return { id: 'kis', label: '한국투자증권', state: 'off', detail: '한국투자증권 키가 없어요(주식 탭 꺼짐)' };
+        if (!deps.connected.kis) return { id: 'kis', label: '한국투자증권', state: 'off', detail: '한국투자증권 앱키가 없어요(주식 시세·순위 꺼짐)' };
         try {
           const q = await withTimeout(deps.market.getQuote(parseInstrumentKey('kr:005930')));
           return { id: 'kis', label: '한국투자증권', state: q.price > 0 ? 'ok' : 'warn', detail: q.price > 0 ? `삼성전자 ${Math.round(q.price).toLocaleString('ko-KR')}원` : '연결은 됐지만 가격이 0으로 와요(응답 형식 확인 필요)' };
         } catch {
-          return { id: 'kis', label: '한국투자증권', state: 'fail', detail: '앱키·앱시크릿·계좌번호를 확인하세요' };
+          return { id: 'kis', label: '한국투자증권', state: 'fail', detail: '앱키·앱시크릿을 확인하세요' };
         }
       })(),
       (async (): Promise<Check> => {

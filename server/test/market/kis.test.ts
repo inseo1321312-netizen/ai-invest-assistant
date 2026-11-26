@@ -4,7 +4,7 @@ import { assertReadPath, createKisClient, KIS_READ_PATHS, KisBlockedError } from
 import { parseInstrumentKey } from '../../src/market/types.js';
 import { fakeFetch, type FakeHandler } from '../fakeFetch.js';
 
-const creds = { appKey: 'APPKEY', appSecret: 'APPSECRET', accountNo: '12345678', productCode: '01' };
+const creds = { appKey: 'APPKEY', appSecret: 'APPSECRET' };
 const NOW = Date.parse('2026-11-26T09:00:00+09:00');
 const samsung = parseInstrumentKey('kr:005930');
 const apple = parseInstrumentKey('us:NAS:AAPL');
@@ -67,9 +67,12 @@ describe('allowlist', () => {
     expect(() => assertReadPath('/uapi/domestic-stock/v1/trading/order-cash')).toThrow(KisBlockedError);
     expect(() => assertReadPath('/uapi/overseas-stock/v1/trading/order')).toThrow(KisBlockedError);
   });
-  test('KIS_READ_PATHS contains no order path', () => {
-    expect(KIS_READ_PATHS.size).toBe(8);
-    for (const p of KIS_READ_PATHS) expect(p).not.toMatch(/order/);
+  test('KIS_READ_PATHS contains no order or account path', () => {
+    for (const p of KIS_READ_PATHS) expect(p).not.toMatch(/order|balance/);
+  });
+  test('balance paths are not allowed', () => {
+    expect(() => assertReadPath('/uapi/domestic-stock/v1/trading/inquire-balance')).toThrow(KisBlockedError);
+    expect(() => assertReadPath('/uapi/overseas-stock/v1/trading/inquire-balance')).toThrow(KisBlockedError);
   });
 });
 
@@ -127,37 +130,3 @@ describe('quotes and candles', () => {
   });
 });
 
-describe('holdings', () => {
-  test('no creds → holdings [] without any call', async () => {
-    const f = baseRoutes();
-    const c = createKisClient({ creds: null, db: openDb(':memory:'), fetchImpl: f, minIntervalMs: 0 });
-    expect(await c.getHoldings()).toEqual([]);
-    expect(f.calls).toHaveLength(0);
-  });
-
-  test('domestic and overseas holdings', async () => {
-    const f = baseRoutes({
-      '/uapi/domestic-stock/v1/trading/inquire-balance': (url) => {
-        expect(url.searchParams.get('CANO')).toBe('12345678');
-        expect(url.searchParams.get('ACNT_PRDT_CD')).toBe('01');
-        return { rt_cd: '0', output1: [
-          { pdno: '005930', prdt_name: '삼성전자', hldg_qty: '10', pchs_avg_pric: '65000.0000' },
-          { pdno: '000660', prdt_name: 'SK하이닉스', hldg_qty: '0', pchs_avg_pric: '0' },
-        ], output2: [] };
-      },
-      '/uapi/overseas-stock/v1/trading/inquire-balance': (url) => {
-        expect(url.searchParams.get('OVRS_EXCG_CD')).toBe('NASD');
-        expect(url.searchParams.get('TR_CRCY_CD')).toBe('USD');
-        return { rt_cd: '0', output1: [
-          { ovrs_pdno: 'AAPL', ovrs_item_name: '애플', ovrs_cblc_qty: '3', pchs_avg_pric: '200.5', ovrs_excg_cd: 'NASD' },
-          { ovrs_pdno: 'KO', ovrs_item_name: '코카콜라', ovrs_cblc_qty: '2', pchs_avg_pric: '60', ovrs_excg_cd: 'NYSE' },
-        ], output2: {} };
-      },
-    });
-    const hs = await client(f).getHoldings();
-    expect(hs).toHaveLength(3);
-    expect(hs[0]).toMatchObject({ quantity: 10, avgPrice: 65000, currency: 'KRW', source: 'kis', side: null, instrument: { market: 'kr', symbol: '005930', name: '삼성전자' } });
-    expect(hs[1]).toMatchObject({ quantity: 3, avgPrice: 200.5, currency: 'USD', instrument: { market: 'us', exchange: 'NAS', symbol: 'AAPL', name: '애플' } });
-    expect(hs[2]!.instrument).toMatchObject({ exchange: 'NYS', symbol: 'KO' });
-  });
-});

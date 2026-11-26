@@ -2,8 +2,8 @@ import { z } from 'zod';
 import type { AiTool } from '../ai/types.js';
 import { summarizeIndicators } from '../market/indicators.js';
 import type { MarketService } from '../market/service.js';
-import type { Bar, Holding, Instrument } from '../market/types.js';
-import { BARS, instrumentKey, MARKETS, parseInstrumentKey } from '../market/types.js';
+import type { Bar, Instrument } from '../market/types.js';
+import { BARS, parseInstrumentKey } from '../market/types.js';
 
 const barEnum = z.enum(BARS as [Bar, ...Bar[]]);
 const keyString = z.string().describe('종목 키. 예: coin:BTC-USDT, coin:BTC-USDT-SWAP, kr:005930, us:NAS:AAPL');
@@ -31,15 +31,6 @@ export function buildMarketTools(market: MarketService): AiTool[] {
       return JSON.stringify(summarizeIndicators(await market.getCandles(parseInstrumentKey(key), bar, 200)));
     },
   };
-  const getHoldings: AiTool<{ market: 'coin' | 'kr' | 'us' }> = {
-    name: 'get_holdings',
-    description: '사용자의 보유 현황(현물·주식·선물 포지션)을 가져온다.',
-    schema: z.strictObject({ market: z.enum(MARKETS as ['coin', 'kr', 'us']) }),
-    async run({ market: m }) {
-      const hs = await market.getHoldings(m);
-      return JSON.stringify(hs.map((h) => ({ key: instrumentKey(h.instrument), name: h.instrument.name, quantity: h.quantity, avgPrice: h.avgPrice, currency: h.currency, side: h.side, leverage: h.leverage, liqPrice: h.liqPrice, fundingRate: h.fundingRate })));
-    },
-  };
   const showChart: AiTool<{ key: string; bar: Bar; from: number | null; to: number | null; markers: { time: number; text: string }[] }> = {
     name: 'show_chart',
     description: '사용자 화면에 차트를 보여준다. from/to는 unix 초(없으면 null), markers는 표시할 지점.',
@@ -53,13 +44,12 @@ export function buildMarketTools(market: MarketService): AiTool[] {
       return '차트를 표시했습니다';
     },
   };
-  return [getCandles, getIndicators, getHoldings, showChart];
+  return [getCandles, getIndicators, showChart];
 }
 
-export function opinionChoices(holding: Holding | null, inst: Instrument): string[] {
-  const swap = inst.kind === 'swap';
-  if (holding) return swap ? ['유지', '일부 정리', '청산 고려'] : ['추가 매수', '유지', '일부 매도', '매도'];
-  return swap ? ['롱 진입', '숏 진입', '관망'] : ['매수', '관망'];
+/** 보유를 따로 보지 않으므로 종목 종류만으로 고른다. 선물 이름은 예전 기록과 맞춘다. */
+export function opinionChoices(inst: Instrument): string[] {
+  return inst.kind === 'swap' ? ['롱 진입', '관망', '숏 진입'] : ['매수', '관망', '매도'];
 }
 
 export const CONFIDENCE = ['낮음', '중간', '높음'] as const;

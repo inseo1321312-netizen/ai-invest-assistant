@@ -1,19 +1,13 @@
 import { expect, test } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { createMarketService } from '../../src/market/service.js';
-import { parseInstrumentKey, type Holding } from '../../src/market/types.js';
 import { loginCookie, testDeps } from '../helpers.js';
 import { fakeKis, fakeOkx } from '../market/fakes.js';
-
-const pos = (key: string, extra: Partial<Holding>): Holding => ({
-  instrument: parseInstrumentKey(key), quantity: 1, avgPrice: 100, currency: 'USDT', source: 'okx',
-  side: null, leverage: null, liqPrice: null, markPrice: null, unrealizedPnl: null, fundingRate: null, ...extra,
-});
 
 async function setup(okx = fakeOkx(), kis = fakeKis()) {
   const deps = testDeps();
   deps.market = createMarketService({ okx, kis, db: deps.db, now: deps.now, fx: async () => 1400 });
-  deps.connected = { okx: true, kis: true };
+  deps.connected = { kis: true };
   const app = await buildApp(deps);
   const cookie = await loginCookie(app);
   return { app, cookie, deps };
@@ -24,36 +18,20 @@ test('routes require login', async () => {
   expect((await app.inject({ method: 'GET', url: '/api/market/coin/overview' })).statusCode).toBe(401);
 });
 
-test('overview: krwValue uses usdKrw for USDT, pnlPct inverted for short', async () => {
-  const okx = fakeOkx({ async getHoldings() { return [pos('coin:BTC-USDT-SWAP', { side: 'short', quantity: 0.5, avgPrice: 110, leverage: 10 })]; } });
-  const { app, cookie } = await setup(okx);
-  const res = await app.inject({ method: 'GET', url: '/api/market/coin/overview', headers: { cookie } });
-  expect(res.statusCode).toBe(200);
-  const body = res.json();
-  expect(body.usdKrw).toBe(1400);
-  const h = body.holdings[0];
-  expect(h.key).toBe('coin:BTC-USDT-SWAP');
-  expect(h.quote.price).toBe(100);
-  expect(h.krwValue).toBe(100 * 0.5 * 1400);
-  expect(h.pnlPct).toBeCloseTo(((110 - 100) / 110) * 100, 6); // 숏: 가격이 내려가면 +
-  expect(h.badge).toBeNull();
-});
-
-test('overview: KRW holdings use raw value', async () => {
-  const kis = fakeKis({ async getHoldings() { return [pos('kr:005930', { currency: 'KRW', source: 'kis', quantity: 10, avgPrice: 65000 })]; } });
-  const { app, cookie } = await setup(fakeOkx(), kis);
-  const body = (await app.inject({ method: 'GET', url: '/api/market/kr/overview', headers: { cookie } })).json();
-  expect(body.holdings[0].krwValue).toBe(700000);
-  expect(body.holdings[0].pnlPct).toBeCloseTo(((70000 - 65000) / 65000) * 100, 6);
-});
-
-test('overview reports source error but still returns manual holdings', async () => {
-  const okx = fakeOkx({ async getHoldings() { throw new Error('boom'); } });
-  const { app, cookie, deps } = await setup(okx);
-  deps.market.addManualHolding({ key: 'coin:ETH-USDT', quantity: 1, avgPrice: 90, side: null, leverage: null });
+test('overview lists favorites with quotes and no holdings', async () => {
+  const { app, cookie } = await setup();
+  await app.inject({ method: 'POST', url: '/api/watchlist', headers: { cookie }, payload: { key: 'coin:SOL-USDT' } });
   const body = (await app.inject({ method: 'GET', url: '/api/market/coin/overview', headers: { cookie } })).json();
-  expect(body.errors).toEqual(['OKX 데이터를 가져오지 못했습니다']);
-  expect(body.holdings.map((h: { key: string }) => h.key)).toEqual(['coin:ETH-USDT']);
+  expect(Object.keys(body).sort()).toEqual(['errors', 'favorites', 'recent', 'usdKrw']);
+  expect(body.favorites.map((w: { key: string }) => w.key)).toEqual(['coin:SOL-USDT']);
+  expect(body.favorites[0].quote.price).toBe(100);
+  expect(body.favorites[0].krwValue).toBe(100 * 1400);
+});
+
+test('manual holdings routes are gone', async () => {
+  const { app, cookie } = await setup();
+  const res = await app.inject({ method: 'POST', url: '/api/manual-holdings', headers: { cookie }, payload: { key: 'kr:005930', quantity: 3, avgPrice: 60000, side: null, leverage: null } });
+  expect(res.statusCode).toBe(404);
 });
 
 test('candles: upstream error → 502 Korean message', async () => {
@@ -70,20 +48,12 @@ test('candles: bad key → 400', async () => {
   expect(res.statusCode).toBe(400);
 });
 
-test('watchlist and manual holdings endpoints', async () => {
+test('favorites can be added and removed', async () => {
   const { app, cookie } = await setup();
   await app.inject({ method: 'POST', url: '/api/watchlist', headers: { cookie }, payload: { key: 'coin:SOL-USDT' } });
-  let body = (await app.inject({ method: 'GET', url: '/api/market/coin/overview', headers: { cookie } })).json();
-  expect(body.watchlist.map((w: { key: string }) => w.key)).toEqual(['coin:SOL-USDT']);
   await app.inject({ method: 'DELETE', url: '/api/watchlist?key=coin:SOL-USDT', headers: { cookie } });
-  const add = await app.inject({ method: 'POST', url: '/api/manual-holdings', headers: { cookie }, payload: { key: 'kr:005930', quantity: 3, avgPrice: 60000, side: null, leverage: null } });
-  expect(add.statusCode).toBe(200);
-  body = (await app.inject({ method: 'GET', url: '/api/market/kr/overview', headers: { cookie } })).json();
-  expect(body.holdings).toHaveLength(1);
-  await app.inject({ method: 'DELETE', url: `/api/manual-holdings/${add.json().id}`, headers: { cookie } });
-  body = (await app.inject({ method: 'GET', url: '/api/market/kr/overview', headers: { cookie } })).json();
-  expect(body.holdings).toHaveLength(0);
-  expect(body.connected).toBe(true);
+  const body = (await app.inject({ method: 'GET', url: '/api/market/coin/overview', headers: { cookie } })).json();
+  expect(body.favorites).toEqual([]);
 });
 
 test('sparklines return last 30 daily closes per key, skipping failures', async () => {

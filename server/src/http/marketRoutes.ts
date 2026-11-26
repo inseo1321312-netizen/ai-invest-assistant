@@ -1,14 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { MarketService } from '../market/service.js';
-import type { Holding, Instrument, MarketId, Quote } from '../market/types.js';
+import type { Instrument, MarketId, Quote } from '../market/types.js';
 import { BARS, instrumentKey, MARKETS, parseInstrumentKey } from '../market/types.js';
 import type { Sentiment } from '../market/sentiment.js';
 
 export interface Badge { opinion: string; confidence: '낮음' | '중간' | '높음'; dataTime: number; provider: 'claude' | 'gpt' }
 export type BadgeLookup = (keys: string[]) => Map<string, Badge>;
 
-export interface HoldingView extends Holding { key: string; quote: Quote | null; krwValue: number | null; pnlPct: number | null; badge: Badge | null }
 export interface QuoteView { key: string; instrument: Instrument; quote: Quote | null; krwValue: number | null; badge: Badge | null }
 
 export function sourceName(market: MarketId): string {
@@ -19,53 +18,31 @@ const keySchema = z.string().refine((k) => {
   try { parseInstrumentKey(k); return true; } catch { return false; }
 }, '잘못된 종목입니다');
 
-export function pnlPct(h: Holding, price: number | null): number | null {
-  if (price === null || !h.avgPrice) return null;
-  const pct = ((price - h.avgPrice) / h.avgPrice) * 100;
-  return h.side === 'short' ? -pct : pct;
-}
-
 export function registerMarketRoutes(app: FastifyInstance, deps: {
   market: MarketService;
-  connected: { okx: boolean; kis: boolean };
+  connected: { kis: boolean };
   badgeLookup?: BadgeLookup;
   sentiment?: (() => Promise<Sentiment | null>) | null;
 }) {
   const svc = deps.market;
   const badges = deps.badgeLookup ?? (() => new Map<string, Badge>());
 
+  /** 홈의 "자주 보는 종목": 즐겨찾기 시세(최근 본 종목은 Task 2에서 채운다) */
   app.get('/api/market/:market/overview', async (req, reply) => {
     const market = (req.params as { market: string }).market as MarketId;
     if (!MARKETS.includes(market)) return reply.code(400).send({ error: '잘못된 요청입니다' });
     const errors = new Set<string>();
-    const failed = () => errors.add(`${sourceName(market)} 데이터를 가져오지 못했습니다`);
-    const auto = await svc.getAutoHoldings(market).catch(() => { failed(); return [] as Holding[]; });
-    const holdings: Holding[] = [...auto, ...svc.getManualHoldings(market).map(({ manualId, ...h }) => ({ ...h, manualId }))];
-    const watch = svc.listWatchlist(market);
     const usdKrw = await svc.usdKrw();
-    const quoteOf = (inst: Instrument) => svc.getQuote(inst).catch(() => { failed(); return null; });
-    const toKrw = (value: number, currency: string) => (currency === 'KRW' ? value : usdKrw === null ? null : value * usdKrw);
-    const keys = [...holdings.map((h) => instrumentKey(h.instrument)), ...watch.map(instrumentKey)];
-    const b = badges(keys);
-
-    const holdingViews: HoldingView[] = await Promise.all(holdings.map(async (h) => {
-      const quote = await quoteOf(h.instrument);
-      const price = quote?.price ?? h.markPrice ?? null;
-      const key = instrumentKey(h.instrument);
-      return { ...h, key, quote, krwValue: price === null ? null : toKrw(price * h.quantity, h.currency), pnlPct: pnlPct(h, price), badge: b.get(key) ?? null };
-    }));
-    const watchViews: QuoteView[] = await Promise.all(watch.map(async (inst) => {
-      const quote = await quoteOf(inst);
+    const toView = async (inst: Instrument): Promise<QuoteView> => {
       const key = instrumentKey(inst);
-      return { key, instrument: inst, quote, krwValue: quote ? toKrw(quote.price, quote.currency) : null, badge: b.get(key) ?? null };
-    }));
-    return {
-      holdings: holdingViews,
-      watchlist: watchViews,
-      usdKrw,
-      connected: market === 'coin' ? deps.connected.okx : deps.connected.kis,
-      errors: [...errors, ...svc.notices(market)],
+      const quote = await svc.getQuote(inst).catch(() => { errors.add(`${sourceName(market)} 데이터를 가져오지 못했습니다`); return null; });
+      const krwValue = quote === null ? null : quote.currency === 'KRW' ? quote.price : usdKrw === null ? null : quote.price * usdKrw;
+      return { key, instrument: inst, quote, krwValue, badge: null };
     };
+    const favorites = await Promise.all(svc.listWatchlist(market).map(toView));
+    const b = badges(favorites.map((f) => f.key));
+    for (const f of favorites) f.badge = b.get(f.key) ?? null;
+    return { favorites, recent: [] as QuoteView[], usdKrw, errors: [...errors] };
   });
 
   app.get('/api/market/candles', async (req, reply) => {
@@ -121,25 +98,6 @@ export function registerMarketRoutes(app: FastifyInstance, deps: {
     const parsed = z.object({ key: z.string() }).safeParse(req.query);
     if (!parsed.success) return reply.code(400).send({ error: '잘못된 요청입니다' });
     svc.removeWatch(parsed.data.key);
-    return { ok: true };
-  });
-
-  app.post('/api/manual-holdings', async (req, reply) => {
-    const parsed = z.object({
-      key: keySchema,
-      quantity: z.number().positive(),
-      avgPrice: z.number().min(0),
-      side: z.enum(['long', 'short']).nullable(),
-      leverage: z.number().positive().max(200).nullable(),
-    }).safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: '입력값을 확인하세요' });
-    return { id: svc.addManualHolding(parsed.data) };
-  });
-
-  app.delete('/api/manual-holdings/:id', async (req, reply) => {
-    const id = Number((req.params as { id: string }).id);
-    if (!Number.isInteger(id)) return reply.code(400).send({ error: '잘못된 요청입니다' });
-    svc.removeManualHolding(id);
     return { ok: true };
   });
 }

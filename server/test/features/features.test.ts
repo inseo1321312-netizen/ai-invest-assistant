@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { openDb } from '../../src/db.js';
 import { createMarketService } from '../../src/market/service.js';
-import { parseInstrumentKey, type Candle, type Holding } from '../../src/market/types.js';
+import { parseInstrumentKey, type Candle } from '../../src/market/types.js';
 import { buildMarketTools, makeSubmitAnalysisTool, opinionChoices } from '../../src/features/tools.js';
 import { badgeLookupFor, latestAnalyses, runTimingAnalysis, saveAnalysis } from '../../src/features/analysis.js';
 import { explainPoint } from '../../src/features/explainPoint.js';
@@ -20,12 +20,7 @@ function candlesEnding(lastStart: number, n: number, step: number): Candle[] {
   return Array.from({ length: n }, (_, i) => ({ time: lastStart - (n - 1 - i) * step, open: 100 + i, high: 102 + i, low: 99 + i, close: 101 + i, volume: 10 + (i === n - 5 ? 90 : 0) }));
 }
 
-const swapHolding: Holding = {
-  instrument: parseInstrumentKey('coin:BTC-USDT-SWAP'), quantity: 0.03, avgPrice: 97000, currency: 'USDT', source: 'okx',
-  side: 'long', leverage: 10, liqPrice: 88000, markPrice: 96000, unrealizedPnl: -30, fundingRate: 0.0001,
-};
-
-function setup(script: FakeStep[][], holdings: Holding[] = []) {
+function setup(script: FakeStep[][]) {
   const db = openDb(':memory:');
   const clock = makeClock(NOW);
   // 마지막 4H 캔들은 아직 마감 전(시작 시각이 지금보다 1시간 전)
@@ -36,7 +31,6 @@ function setup(script: FakeStep[][], holdings: Holding[] = []) {
       const last = bar === '4H' ? lastOpen : Math.floor(NOW_SEC / step) * step;
       return candlesEnding(last, limit, step);
     },
-    async getHoldings() { return holdings; },
     async getQuote(instId) { return { instrument: parseInstrumentKey(`coin:${instId}`), price: 96000, changePct24h: -2, currency: 'USDT', time: NOW_SEC }; },
   });
   const market = createMarketService({ okx, kis: fakeKis(), db, now: clock.now, fx: async () => 1400 });
@@ -55,11 +49,10 @@ const submit = (opinion: string): FakeStep => ({ tool: 'submit_analysis', input:
 } });
 
 describe('opinion choices', () => {
-  test('four vocabularies', () => {
-    expect(opinionChoices(swapHolding, parseInstrumentKey('coin:BTC-USDT-SWAP'))).toEqual(['유지', '일부 정리', '청산 고려']);
-    expect(opinionChoices(null, parseInstrumentKey('coin:BTC-USDT-SWAP'))).toEqual(['롱 진입', '숏 진입', '관망']);
-    expect(opinionChoices({ ...swapHolding, instrument: parseInstrumentKey('coin:ETH-USDT'), side: null }, parseInstrumentKey('coin:ETH-USDT'))).toEqual(['추가 매수', '유지', '일부 매도', '매도']);
-    expect(opinionChoices(null, parseInstrumentKey('kr:005930'))).toEqual(['매수', '관망']);
+  test('buy/hold/sell for spot and stocks, long/hold/short for swaps', () => {
+    expect(opinionChoices(parseInstrumentKey('coin:BTC-USDT'))).toEqual(['매수', '관망', '매도']);
+    expect(opinionChoices(parseInstrumentKey('kr:005930'))).toEqual(['매수', '관망', '매도']);
+    expect(opinionChoices(parseInstrumentKey('coin:BTC-USDT-SWAP'))).toEqual(['롱 진입', '관망', '숏 진입']);
   });
 
   test('submit tool rejects opinion outside choices', () => {
@@ -72,7 +65,7 @@ describe('opinion choices', () => {
   test('market tools emit chart event and return indicator json', async () => {
     const { deps } = setup([]);
     const tools = buildMarketTools(deps.market);
-    expect(tools.map((t) => t.name)).toEqual(['get_candles', 'get_indicators', 'get_holdings', 'show_chart']);
+    expect(tools.map((t) => t.name)).toEqual(['get_candles', 'get_indicators', 'show_chart']);
     const emitted: unknown[] = [];
     const show = tools.find((t) => t.name === 'show_chart')!;
     await show.run({ key: 'coin:BTC-USDT', bar: '1D', from: null, to: null, markers: [] }, { emit: (e) => emitted.push(e) });
@@ -121,15 +114,12 @@ describe('timing analysis', () => {
     expect(ev.some((e) => e.type === 'analysis')).toBe(true);
   });
 
-  test('futures prompt includes leverage, liquidation distance, funding rate and choices', async () => {
-    const { deps, ai } = setup([[submit('유지')]], [swapHolding]);
+  test('futures prompt offers long/hold/short and no holdings context', async () => {
+    const { deps, ai } = setup([[submit('관망')]]);
     await collect(runTimingAnalysis(deps, { key: 'coin:BTC-USDT-SWAP', horizon: 'swing', provider: 'claude', deep: true }));
     const r = ai.requests[0]!;
-    expect(r.userText).toContain('레버리지 10배');
-    expect(r.userText).toMatch(/청산가 88,?000/);
-    expect(r.userText).toContain('8.33%'); // (96000-88000)/96000
-    expect(r.userText).toContain('펀딩비');
-    expect(r.userText).toContain('유지 / 일부 정리 / 청산 고려');
+    expect(r.userText).toContain('롱 진입 / 관망 / 숏 진입');
+    expect(r.userText).not.toContain('내 보유');
     expect(r.tier).toBe('deep');
     expect(r.webSearch).toEqual({ maxUses: 3 });
     expect(r.instructions).not.toMatch(/2026/); // 지시문에는 바뀌는 값(날짜)이 없다
@@ -246,18 +236,6 @@ describe('review fixes', () => {
       opinion: '롱 진입', confidence: '낮음', summary: '브리핑', reasons: ['r'], risks: ['k'], news: [], origin: 'briefing', tier: 'standard' });
     await collect(runTimingAnalysis(deps, { key: 'coin:BTC-USDT-SWAP', horizon: 'swing', provider: 'claude', deep: false }));
     expect(ai.calls()).toBe(1);
-  });
-
-  test('analysis is not cached when holdings could not be checked', async () => {
-    const db = openDb(':memory:');
-    const okx = fakeOkx({ async getHoldings() { throw new Error('down'); }, async getCandles(_i, bar, limit) { return candlesEnding(Math.floor(NOW_SEC / H4) * H4, limit, bar === '4H' ? H4 : 86400); } });
-    const market = createMarketService({ okx, kis: fakeKis(), db, now: () => NOW, fx: async () => 1 });
-    const ai = fakeRunAi([[submit('관망')], [submit('관망')]]);
-    const deps = { db, market, runAi: ai.runAi, now: () => NOW };
-    await collect(runTimingAnalysis(deps, { key: 'coin:BTC-USDT-SWAP', horizon: 'swing', provider: 'claude', deep: false }));
-    await collect(runTimingAnalysis(deps, { key: 'coin:BTC-USDT-SWAP', horizon: 'swing', provider: 'claude', deep: false }));
-    expect(ai.calls()).toBe(2);
-    expect(ai.requests[0]!.userText).toContain('보유 정보를 확인하지 못했');
   });
 
   test('news links that are not http(s) are dropped', async () => {
