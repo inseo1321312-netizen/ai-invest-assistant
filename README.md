@@ -78,7 +78,10 @@ PC를 꺼도 24시간 돌아가고 비용이 들지 않습니다. 앱은 인터�
 
 ### ① Oracle Cloud 가입
 1. oracle.com/cloud/free 에서 가입합니다. 본인 확인용으로 카드 등록이 필요하지만, 무료 범위(Always Free) 안에서는 청구되지 않습니다.
-2. **홈 지역(Home Region)은 서울(South Korea Central) 또는 춘천**을 고릅니다. 나중에 못 바꿉니다.
+2. **홈 지역(Home Region)**은 나중에 못 바꾸고, 무료 서버는 홈 지역에만 만들 수 있습니다. 이 순서로 고르세요.
+   - **서울(South Korea Central)** 또는 **춘천(South Korea North)**: 가장 좋습니다. 무료 자리가 차면 목록에 안 보일 수 있습니다.
+   - 한국 지역이 없으면 **싱가포르(Singapore)** 또는 **호주(Sydney)**.
+   - **일본·인도·미국은 피하세요.** OKX 이용 제한 국가로 알려져 있어 서버에서 OKX 접속이 막힐 수 있습니다.
 3. (권장) 계정을 "종량제(Pay As You Go)"로 올립니다. 무료 범위 안에서는 여전히 0원이고, 오래 놀고 있는 무료 서버를 Oracle이 회수하는 정책의 대상에서 빠집니다. 정확한 조건은 Oracle 안내를 확인하세요.
 
 ### ② 서버 만들기
@@ -93,6 +96,13 @@ PC를 꺼도 24시간 돌아가고 비용이 들지 않습니다. 앱은 인터�
 ssh -i <저장한 개인키 파일 경로> ubuntu@<Public IP>
 ```
 처음 접속하면 "yes"를 입력합니다.
+
+설치 전에 이 서버에서 OKX와 한국투자증권에 연결되는지 확인합니다.
+```
+curl -s "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT" | head -c 120; echo
+curl -s -o /dev/null -w "KIS %{http_code}\n" https://openapi.koreainvestment.com:9443
+```
+첫 줄이 `{"code":"0"`로 시작하고, 둘째 줄이 `KIS 000`이 아닌 숫자면 괜찮습니다. 아니면 다른 지역이 필요합니다.
 
 ### ④ 설치 (서버에서)
 ```
