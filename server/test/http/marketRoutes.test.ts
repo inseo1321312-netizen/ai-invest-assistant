@@ -86,3 +86,10 @@ test('recent views appear in overview, excluding favorites', async () => {
   expect(body.recent[0].quote.price).toBe(100);
   expect((await app.inject({ method: 'POST', url: '/api/recent', headers: { cookie }, payload: { key: 'bad' } })).statusCode).toBe(400);
 });
+
+test('favorite keys can be listed for the star buttons', async () => {
+  const { app, cookie } = await setup();
+  await app.inject({ method: 'POST', url: '/api/watchlist', headers: { cookie }, payload: { key: 'coin:SOL-USDT' } });
+  await app.inject({ method: 'POST', url: '/api/watchlist', headers: { cookie }, payload: { key: 'kr:005930' } });
+  expect((await app.inject({ method: 'GET', url: '/api/watchlist', headers: { cookie } })).json()).toEqual({ keys: ['coin:SOL-USDT', 'kr:005930'] });
+});

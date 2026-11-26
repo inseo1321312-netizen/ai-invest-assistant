@@ -53,7 +53,7 @@ describe('chart', () => {
     await waitFor(() => expect(chartState.data.length).toBe(1));
     expect((chartState.data[0] as { time: number }).time).toBe(1764115200 + KST_OFFSET);
     chartState.click!({ time: 1764115200 + KST_OFFSET });
-    expect(onPoint).toHaveBeenCalledWith(1764115200);
+    expect(onPoint).toHaveBeenCalledWith(1764115200, null);
   });
 
   test('chart load error shows Korean message', async () => {
@@ -94,7 +94,7 @@ describe('instrument view', () => {
     await userEvent.click(screen.getByRole('button', { name: '두 번째 의견' }));
     expect(await screen.findByText('매수')).toBeTruthy();
     expect(screen.getByText('관망')).toBeTruthy();
-    expect(s.calls.find((c) => c.method === 'POST')?.body).toMatchObject({ provider: 'gpt' });
+    expect(s.calls.find((c) => c.method === 'POST' && c.url.pathname === '/api/analysis')?.body).toMatchObject({ provider: 'gpt' });
   });
 
   test('streaming status shown while waiting', async () => {
@@ -132,9 +132,10 @@ describe('instrument view', () => {
     render(<InstrumentView keyId="coin:BTC-USDT" onClose={() => {}} onChat={() => {}} />);
     await waitFor(() => expect(chartState.click).not.toBeNull());
     chartState.click!({ time: 1764115200 + KST_OFFSET });
-    expect(await screen.findByRole('dialog', { name: '이 지점 왜?' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: '왜 움직였을까?' })).toBeTruthy();
     expect(await screen.findByText('거래량 급증')).toBeTruthy();
     expect(s.calls.find((c) => c.url.pathname === '/api/explain-point')?.body).toMatchObject({ key: 'coin:BTC-USDT', time: 1764115200 });
+    await waitFor(() => expect(s.calls.some((c) => c.url.pathname === '/api/news' && c.url.searchParams.get('from') === '1764115200' && c.url.searchParams.get('to') === '1764115200')).toBe(true));
   });
 });
 

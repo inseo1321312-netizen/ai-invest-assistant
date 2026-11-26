@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from '../api';
+import { api, ApiError, post } from '../api';
 import { changeClass, formatDateTimeKst, formatPct, formatPrice, formatTimeKst, HORIZON_LABEL } from '../format';
 import { yearStats } from '../insights';
 import { streamSse } from '../sse';
-import type { Analysis, Bar, Candle, HistoryItem, Horizon, ProviderId, Quote } from '../types';
-import { Dots, Icon, Segmented, Sheet, useFlash } from '../ui';
+import type { Analysis, Bar, Candle, HistoryItem, Horizon, NewsItem, ProviderId, Quote } from '../types';
+import { Dots, Icon, Segmented, Sheet, useFlash, useToast } from '../ui';
+import { InstrumentInfo } from './InstrumentInfo';
+import { NewsList, NewsStrip } from './NewsStrip';
 import { AnalysisPanel, emptyRun, PROVIDER_LABEL, type RunState } from './AnalysisPanel';
 import { CandleChart, DEFAULT_INDICATORS, type Indicators } from './CandleChart';
 
@@ -24,8 +26,9 @@ const IND_LABEL: { key: keyof Indicators; label: string }[] = [
   { key: 'ma', label: '이동평균' }, { key: 'bb', label: '볼린저' }, { key: 'rsi', label: 'RSI' }, { key: 'macd', label: 'MACD' },
 ];
 
-function ExplainSheet({ keyId, bar, time, onClose }: { keyId: string; bar: Bar; time: number; onClose: () => void }) {
+function ExplainSheet({ keyId, bar, time, pct, onClose }: { keyId: string; bar: Bar; time: number; pct: number | null; onClose: () => void }) {
   const [text, setText] = useState('');
+  const [news, setNews] = useState<NewsItem[] | null>(null);
   const [status, setStatus] = useState<string | null>('그 무렵 소식을 찾는 중…');
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -40,12 +43,29 @@ function ExplainSheet({ keyId, bar, time, onClose }: { keyId: string; bar: Bar; 
     }, ctrl.signal).finally(() => setStatus(null));
     return () => ctrl.abort();
   }, [keyId, bar, time]);
+  // 그 날짜 앞뒤 하루의 관련 뉴스
+  useEffect(() => {
+    let alive = true;
+    api<{ items: NewsItem[] }>(`/api/news?key=${encodeURIComponent(keyId)}&from=${time}&to=${time}`)
+      .then((r) => { if (alive) setNews(Array.isArray(r.items) ? r.items.slice(0, 5) : []); })
+      .catch(() => { if (alive) setNews([]); });
+    return () => { alive = false; };
+  }, [keyId, time]);
   return (
-    <Sheet title="이 지점 왜?" onClose={onClose}>
-      <p className="small muted" style={{ marginTop: 0 }}>{formatDateTimeKst(time)} 캔들</p>
+    <Sheet title="왜 움직였을까?" onClose={onClose}>
+      <p className="small muted" style={{ marginTop: 0 }}>
+        {formatDateTimeKst(time)} 캔들
+        {pct !== null && <b className={`change num ${changeClass(pct)}`} style={{ marginLeft: 8 }}>{formatPct(pct)}</b>}
+      </p>
       {status && <p className="status" aria-live="polite"><Dots /> {status}</p>}
       {error && <p className="error" role="alert">{error}</p>}
       {text && <p style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0', lineHeight: 1.65 }}>{text}</p>}
+      {news && news.length > 0 && (
+        <>
+          <h3 className="sheet-sub">그 무렵 뉴스</h3>
+          <NewsList items={news} />
+        </>
+      )}
     </Sheet>
   );
 }
@@ -59,7 +79,11 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
   const [indicators, setIndicators] = useState<Indicators>(DEFAULT_INDICATORS);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [runs, setRuns] = useState<Partial<Record<ProviderId, RunState>>>({});
-  const [explainAt, setExplainAt] = useState<number | null>(null);
+  const [explainAt, setExplainAt] = useState<{ time: number; pct: number | null } | null>(null);
+  const [name, setName] = useState<string | null>(null);
+  const [fav, setFav] = useState(false);
+  const [bell, setBell] = useState(false);
+  const [toast, showToast] = useToast();
   const [daily, setDaily] = useState<Candle[] | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const runningNow = Object.values(runs).some((r) => r?.running);
@@ -80,11 +104,50 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
 
   useEffect(() => {
     let alive = true;
-    const load = () => api<{ quote: Quote }>(`/api/market/quote?key=${encodeURIComponent(keyId)}`).then((r) => { if (alive) setQuote(r.quote); }).catch(() => undefined);
+    const load = () => api<{ quote: Quote; name?: string | null }>(`/api/market/quote?key=${encodeURIComponent(keyId)}`).then((r) => {
+      if (!alive) return;
+      setQuote(r.quote);
+      if (r.name) setName(r.name);
+    }).catch(() => undefined);
     void load();
     const t = setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 15_000);
     return () => { alive = false; clearInterval(t); };
   }, [keyId]);
+
+  // 최근 본 종목으로 기록하고, ★·🔔 상태를 불러온다
+  useEffect(() => {
+    let alive = true;
+    void post('/api/recent', { key: keyId }).catch(() => undefined);
+    api<{ keys: string[] }>('/api/watchlist').then((r) => { if (alive && Array.isArray(r.keys)) setFav(r.keys.includes(keyId)); }).catch(() => undefined);
+    if (isCoin) api<{ coins: string[] }>('/api/alerts').then((r) => { if (alive && Array.isArray(r.coins)) setBell(r.coins.includes(keyId)); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [keyId, isCoin]);
+
+  async function toggleFav() {
+    const next = !fav;
+    setFav(next);
+    try {
+      if (next) await post('/api/watchlist', { key: keyId });
+      else await api(`/api/watchlist?key=${encodeURIComponent(keyId)}`, { method: 'DELETE' });
+      showToast(next ? '즐겨찾기에 넣었어요' : '즐겨찾기에서 뺐어요');
+    } catch (e) {
+      setFav(!next);
+      showToast(e instanceof ApiError ? e.message : '바꾸지 못했어요');
+    }
+  }
+
+  async function toggleBell() {
+    const next = !bell;
+    setBell(next);
+    try {
+      if (next) await post('/api/alerts/coins', { key: keyId });
+      else await api(`/api/alerts/coins?key=${encodeURIComponent(keyId)}`, { method: 'DELETE' });
+      showToast(next ? '급변·사건이 생기면 알려 드릴게요' : '알림을 껐어요');
+    } catch (e) {
+      setBell(!next);
+      showToast(e instanceof ApiError ? e.message : '바꾸지 못했어요');
+    }
+  }
 
   // 1년 범위·변동폭 계산용 일봉
   useEffect(() => {
@@ -140,8 +203,12 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
     <div className="screen" role="region" aria-label={`${keyId} 상세`}>
       <header className="topbar">
         <button type="button" className="icon-btn" aria-label="뒤로" onClick={onClose}><Icon.back /></button>
-        <p className="title-sm">{title}</p>
-        <button type="button" className="icon-btn" onClick={() => onChat(keyId)}><Icon.chat /> 채팅</button>
+        <h1 className="title-sm">{name ?? title}{name && <small>{title}</small>}</h1>
+        <div className="head-actions">
+          <button type="button" className={`icon-btn toggle-icon${fav ? ' on star' : ''}`} aria-label="즐겨찾기" aria-pressed={fav} onClick={toggleFav}><Icon.star /></button>
+          {isCoin && <button type="button" className={`icon-btn toggle-icon${bell ? ' on' : ''}`} aria-label="알림 코인" aria-pressed={bell} onClick={toggleBell}><Icon.bell /></button>}
+          <button type="button" className="icon-btn" aria-label="채팅" onClick={() => onChat(keyId)}><Icon.chat /></button>
+        </div>
       </header>
 
       <div className="price-hero">
@@ -155,15 +222,17 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
         )}
       </div>
 
+      <NewsStrip keyId={keyId} />
+
       <section className="card" aria-label="차트">
         <Segmented small kind="pressed" label="캔들 단위" options={bars} value={bar} onChange={setBar} />
-        <CandleChart keyId={keyId} bar={bar} onPointClick={setExplainAt} indicators={indicators} />
+        <CandleChart keyId={keyId} bar={bar} onPointClick={(time, pct) => setExplainAt({ time, pct })} indicators={indicators} autoMarkers />
         <div className="chart-tools" role="group" aria-label="지표">
           {IND_LABEL.map((i) => (
             <button key={i.key} type="button" className="toggle" aria-pressed={indicators[i.key]} onClick={() => setIndicators((s) => ({ ...s, [i.key]: !s[i.key] }))}>{i.label}</button>
           ))}
         </div>
-        <p className="hint">캔들을 누르면 그때 왜 움직였는지 AI가 찾아봐요.</p>
+        <p className="hint">▲▼는 크게 오르내린 캔들이에요. 캔들을 누르면 왜 움직였는지 AI가 찾아봐요.</p>
       </section>
       {stats && (
         <dl className="stats rise" aria-label="주요 지표">
@@ -173,7 +242,8 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
           <div><dt>1년 범위 위치</dt><dd className="num">{Math.round(stats.position * 100)}%</dd></div>
         </dl>
       )}
-      {explainAt !== null && <ExplainSheet keyId={keyId} bar={bar} time={explainAt} onClose={() => setExplainAt(null)} />}
+      <InstrumentInfo keyId={keyId} />
+      {explainAt !== null && <ExplainSheet keyId={keyId} bar={bar} time={explainAt.time} pct={explainAt.pct} onClose={() => setExplainAt(null)} />}
 
       <div className="section-head"><h2 className="section-title">AI 타이밍 분석</h2></div>
       <Segmented kind="radio" label="분석 기간" options={HORIZON_OPTIONS} value={horizon} onChange={changeHorizon} />
@@ -198,6 +268,7 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
         <button type="button" className="btn" disabled={anyRunning} onClick={() => run('claude', true)}>심층 분석</button>
         <button type="button" className="btn" disabled={anyRunning} onClick={() => run(other, false)} title={`${PROVIDER_LABEL[other]}에게 묻기`}>두 번째 의견</button>
       </div>
+      {toast}
     </div>
   );
 }

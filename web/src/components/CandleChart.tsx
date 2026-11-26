@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CandlestickSeries, HistogramSeries, LineSeries, createChart, createSeriesMarkers, type UTCTimestamp } from 'lightweight-charts';
 import { api, ApiError } from '../api';
 import { bollinger, macd, rsi, sma } from '../indicators';
+import { bigMoves } from '../bigMoves';
 import type { Bar, Candle } from '../types';
 
 /** 차트 라이브러리는 UTC로 그리므로 한국 시간으로 보이게 9시간 밀어서 넣고, 클릭하면 되돌린다. */
@@ -21,10 +22,13 @@ function cssVar(name: string, fallback: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
-export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 300, indicators = DEFAULT_INDICATORS, from = null, to = null }: {
+export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 300, indicators = DEFAULT_INDICATORS, from = null, to = null, autoMarkers = false }: {
   keyId: string;
   bar: Bar;
-  onPointClick?: (time: number) => void;
+  /** 누른 캔들의 시작 시각(UTC 초)과 직전 종가 대비 등락률(%) */
+  onPointClick?: (time: number, pct: number | null) => void;
+  /** 크게 오르내린 캔들에 ▲▼ 표시 */
+  autoMarkers?: boolean;
   markers?: { time: number; text: string }[];
   height?: number;
   indicators?: Indicators;
@@ -60,7 +64,7 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
           layout: { background: { color: 'transparent' }, textColor: muted, fontFamily: 'Pretendard Variable, system-ui, sans-serif', attributionLogo: false },
           grid: { vertLines: { visible: false }, horzLines: { color: line } },
           rightPriceScale: { borderVisible: false },
-          timeScale: { timeVisible: INTRADAY.includes(bar), secondsVisible: false, borderVisible: false },
+          timeScale: { timeVisible: INTRADAY.includes(bar), secondsVisible: false, borderVisible: false, fixLeftEdge: true, fixRightEdge: true },
           crosshair: { mode: 1 },
           handleScroll: { vertTouchDrag: false, mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true },
           handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: true },
@@ -109,13 +113,21 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
         };
         chart.subscribeCrosshairMove?.(onMove as never);
 
-        if (markers.length) {
-          createSeriesMarkers(candleSeries, markers.map((m) => ({ time: t(m.time), position: 'aboveBar' as const, color: ai, shape: 'arrowDown' as const, text: m.text })));
-        }
+        const allMarkers = [
+          ...markers.map((m) => ({ time: t(m.time), position: 'aboveBar' as const, color: ai, shape: 'arrowDown' as const, text: m.text })),
+          ...(autoMarkers ? bigMoves(candles).map((m) => (m.pct > 0
+            ? { time: t(m.time), position: 'belowBar' as const, color: up, shape: 'arrowUp' as const, text: `+${m.pct.toFixed(1)}%` }
+            : { time: t(m.time), position: 'aboveBar' as const, color: down, shape: 'arrowDown' as const, text: `${m.pct.toFixed(1)}%` })) : []),
+        ].sort((a, b) => a.time - b.time);
+        if (allMarkers.length) createSeriesMarkers(candleSeries, allMarkers);
         if (from !== null && to !== null) chart.timeScale().setVisibleRange({ from: t(from), to: t(to) });
         else chart.timeScale().fitContent();
         const onClick = (p: { time?: unknown }) => {
-          if (typeof p.time === 'number') clickRef.current?.(p.time - KST);
+          if (typeof p.time !== 'number') return;
+          const at = p.time - KST;
+          const i = candles.findIndex((c) => c.time === at);
+          const prev = i > 0 ? candles[i - 1]!.close : 0;
+          clickRef.current?.(at, i > 0 && prev > 0 ? (candles[i]!.close / prev - 1) * 100 : null);
         };
         chart.subscribeClick(onClick as never);
         cleanup = () => { chart.unsubscribeClick(onClick as never); chart.unsubscribeCrosshairMove?.(onMove as never); chart.remove(); };
@@ -124,7 +136,7 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
     return () => { alive = false; cleanup(); };
     // markers·범위는 처음 그릴 때만 쓴다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keyId, bar, totalHeight, indicators.ma, indicators.bb, indicators.rsi, indicators.macd]);
+  }, [keyId, bar, totalHeight, indicators.ma, indicators.bb, indicators.rsi, indicators.macd, autoMarkers]);
 
   return (
     <div style={{ position: 'relative' }}>

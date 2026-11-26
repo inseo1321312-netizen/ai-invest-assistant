@@ -106,6 +106,9 @@ export function registerMarketRoutes(app: FastifyInstance, deps: {
     return { ok: true };
   });
 
+  /** 별 버튼 상태용: 모든 시장의 즐겨찾기 키 */
+  app.get('/api/watchlist', async () => ({ keys: MARKETS.flatMap((m) => svc.listWatchlist(m).map(instrumentKey)) }));
+
   app.post('/api/watchlist', async (req, reply) => {
     const parsed = z.object({ key: keySchema }).safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: '잘못된 종목입니다' });
