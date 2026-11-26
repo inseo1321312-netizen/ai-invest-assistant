@@ -163,7 +163,7 @@ a { color: inherit; }
 .topbar-sub { font-size: 13px; color: var(--muted); margin: 0 0 2px; font-weight: 600; }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  min-width: 38px; height: 38px; padding: 0 11px; border-radius: 999px;
+  min-width: 44px; height: 44px; padding: 0 11px; border-radius: 999px;
   border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font-size: 14px; font-weight: 700;
   transition: transform var(--t-fast) var(--ease), background var(--t-fast), border-color var(--t-fast);
 }
@@ -319,7 +319,7 @@ a { color: inherit; }
 .topbar h1.title-sm { font-size: 17px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; }
 .topbar h1.title-sm small { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; letter-spacing: 0; }
 .head-actions { display: flex; gap: 6px; flex: none; }
-.head-actions .icon-btn { width: 40px; height: 40px; padding: 0; }
+.head-actions .icon-btn { width: 44px; height: 44px; padding: 0; }
 .toggle-icon.on { color: var(--ai); border-color: var(--ai); background: var(--ai-soft); }
 .toggle-icon.on.star { color: #f5b400; border-color: #f5b40066; background: rgba(245, 180, 0, 0.12); }
 .toggle-icon.on svg { fill: currentColor; }
@@ -349,7 +349,7 @@ a.btn { text-decoration: none; color: var(--ink); }
 .ok-text { color: var(--ok); font-weight: 700; font-size: 14px; }
 .chip-list { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .chip-list .chip { padding: 4px 4px 4px 11px; font-weight: 700; }
-.chip-x { border: none; background: none; width: 28px; height: 28px; border-radius: 50%; color: var(--muted); font-size: 13px; }
+.chip-x { border: none; background: none; width: 44px; height: 44px; margin: -8px -6px -8px -8px; border-radius: 50%; color: var(--muted); font-size: 13px; }
 .field-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .field-row .field { font-size: 12.5px; }
 .check { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; font-weight: 600; color: var(--ink-2); }
@@ -358,7 +358,7 @@ a.btn { text-decoration: none; color: var(--ink); }
 /* ── 설정 메뉴 ───────────────────────────────────────── */
 .set-menu { display: flex; gap: 6px; overflow-x: auto; padding: 0 var(--gutter) 4px; scrollbar-width: none; }
 .set-menu::-webkit-scrollbar { display: none; }
-.set-menu button { flex: none; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); font-size: 13.5px; font-weight: 700; color: var(--ink-2); }
+.set-menu button { flex: none; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); font-size: 13.5px; font-weight: 700; color: var(--ink-2); }
 .panel { scroll-margin-top: calc(env(safe-area-inset-top) + 12px); }
 .set-label { margin: 12px 0 0 !important; font-size: 13px; font-weight: 700; color: var(--muted); }
 .panel .seg.small { margin-top: 6px; }

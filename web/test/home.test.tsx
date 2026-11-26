@@ -37,6 +37,24 @@ describe('search', () => {
     expect(star.getAttribute('aria-pressed')).toBe('true');
   });
 
+  test('stars are already on for existing favorites', async () => {
+    mockServer({ '/api/search': () => ({ hits: [samsung] }), '/api/watchlist': () => ({ keys: ['kr:005930'] }) });
+    render(<SearchSheet onOpen={() => {}} onClose={() => {}} />);
+    await userEvent.type(screen.getByLabelText('종목 이름'), '삼성');
+    const star = await screen.findByRole('button', { name: '삼성전자 즐겨찾기' }, { timeout: 1000 });
+    await waitFor(() => expect(star.getAttribute('aria-pressed')).toBe('true'));
+  });
+
+  test('clearing the box right away does not leave the spinner on', async () => {
+    mockServer({ '/api/search': () => ({ hits: [] }) });
+    render(<SearchSheet onOpen={() => {}} onClose={() => {}} />);
+    const box = screen.getByLabelText('종목 이름');
+    await userEvent.type(box, 'a');
+    await userEvent.clear(box);
+    await new Promise((res) => setTimeout(res, 300));
+    expect(screen.queryByText(/찾는 중/)).toBeNull();
+  });
+
   test('no matches says so', async () => {
     mockServer({ '/api/search': () => ({ hits: [] }) });
     render(<SearchSheet onOpen={() => {}} onClose={() => {}} />);
@@ -81,9 +99,16 @@ describe('trending', () => {
   });
 
   test('stock rankings need the KIS key', async () => {
-    mockServer({ '/api/trending/kr': () => ({ items: [] }) });
+    mockServer({ '/api/trending/kr': () => ({ items: [], needsKey: true }) });
     render(<Trending market="kr" onOpen={() => {}} />);
     expect(await screen.findByText(/한투 앱키를 넣으면/)).toBeTruthy();
+  });
+
+  test('with the key set, an empty ranking does not ask for the key', async () => {
+    mockServer({ '/api/trending/us': () => ({ items: [], needsKey: false }) });
+    render(<Trending market="us" onOpen={() => {}} />);
+    expect(await screen.findByText(/순위를 불러오지 못했어요/)).toBeTruthy();
+    expect(screen.queryByText(/한투 앱키를 넣으면/)).toBeNull();
   });
 });
 

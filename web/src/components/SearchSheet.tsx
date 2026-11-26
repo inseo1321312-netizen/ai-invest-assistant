@@ -12,11 +12,14 @@ export function SearchSheet({ onOpen, onClose }: { onOpen: (key: string) => void
   const [starred, setStarred] = useState<Set<string>>(new Set());
   const input = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { input.current?.focus(); }, []);
+  useEffect(() => {
+    input.current?.focus();
+    api<{ keys: string[] }>('/api/watchlist').then((r) => { if (Array.isArray(r.keys)) setStarred(new Set(r.keys)); }).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const term = q.trim();
-    if (!term) { setHits(null); return; }
+    if (!term) { setHits(null); setLoading(false); return; }
     let alive = true;
     setLoading(true);
     const t = setTimeout(() => {

@@ -64,7 +64,7 @@ export function ChatgptConnect({ onConnected }: { onConnected: () => void }) {
         <>
           <ol className="steps">
             <li>아래 버튼을 눌러 OpenAI에 로그인하고 <b>허용</b>을 눌러요.</li>
-            <li>"페이지를 열 수 없음"이 나오면 정상이에요. <b>주소창의 주소를 길게 눌러 복사</b>해요.</li>
+            <li>"페이지를 열 수 없음"이 나오면 정상이에요. <b>주소창의 주소를 길게 눌러 복사</b>해요. 주소창이 없으면 <b>공유 버튼 → 복사</b>를 누르거나, 사파리로 열어서 복사해요.</li>
             <li>이 화면으로 돌아와 <b>붙여넣기</b>를 눌러요.</li>
           </ol>
           <a className="btn btn-block" href={url} target="_blank" rel="noreferrer noopener">OpenAI 로그인 열기</a>

@@ -11,12 +11,13 @@ type Kind = 'gainers' | 'value';
 export function Trending({ market, onOpen }: { market: MarketId; onOpen: (key: string) => void }) {
   const [kind, setKind] = useState<Kind>('gainers');
   const [items, setItems] = useState<TrendItem[] | null>(null);
+  const [needsKey, setNeedsKey] = useState(false);
 
   useEffect(() => {
     let alive = true;
     setItems(null);
-    api<{ items: TrendItem[] }>(`/api/trending/${market}?kind=${kind}`)
-      .then((r) => { if (alive) setItems(r.items); })
+    api<{ items: TrendItem[]; needsKey?: boolean }>(`/api/trending/${market}?kind=${kind}`)
+      .then((r) => { if (alive) { setItems(r.items); setNeedsKey(r.needsKey === true); } })
       .catch(() => { if (alive) setItems([]); });
     return () => { alive = false; };
   }, [market, kind]);
@@ -32,7 +33,7 @@ export function Trending({ market, onOpen }: { market: MarketId; onOpen: (key: s
       </div>
       {!items && <div className="trend-row" aria-hidden="true">{Array.from({ length: 3 }, (_, i) => <span key={i} className="trend-card skeleton" />)}</div>}
       {items && items.length === 0 && (
-        <p className="empty">{market === 'coin' ? '지금 순위를 불러오지 못했어요. 잠시 뒤 다시 열어 보세요.' : '한투 앱키를 넣으면 한국·미국 순위가 보여요.'}</p>
+        <p className="empty">{needsKey ? '한투 앱키를 넣으면 한국·미국 순위가 보여요.' : '지금 순위를 불러오지 못했어요. 잠시 뒤 다시 열어 보세요.'}</p>
       )}
       {items && items.length > 0 && (
         <div className="trend-row">
