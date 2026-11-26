@@ -6,7 +6,7 @@ import type { MarketService } from './market/service.js';
 import { registerMarketRoutes, type BadgeLookup } from './http/marketRoutes.js';
 import type { Sentiment } from './market/sentiment.js';
 import { registerAdminRoutes } from './http/adminRoutes.js';
-import type { SiwcTokenStore } from './ai/siwcTokens.js';
+import type { SiwcTokens, SiwcTokenStore } from './ai/siwcTokens.js';
 import { registerAiRoutes } from './http/aiRoutes.js';
 import { badgeLookupFor } from './features/analysis.js';
 import type { RunAi } from './features/deps.js';
@@ -56,6 +56,8 @@ export interface AppDeps {
   news?: News | null;
   /** 종목 기본 지표·선물 지표·김프 */
   instrumentInfo?: InstrumentInfo | null;
+  /** ChatGPT 로그인 코드 교환(테스트에서 바꿔 끼움) */
+  siwcExchange?: (p: { clientId: string; code: string; verifier: string; redirectUri: string }) => Promise<SiwcTokens>;
   /** 업비트(연결 점검용) */
   upbit?: Pick<UpbitClient, 'markets' | 'krwPrices'> | null;
   /** 코인 공포·탐욕 지수 */
