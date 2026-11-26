@@ -96,14 +96,14 @@ ssh -i <저장한 개인키 파일 경로> ubuntu@<Public IP>
 
 ### ④ 설치 (서버에서)
 ```
-curl -fsSL https://raw.githubusercontent.com/<아이디>/<저장소>/main/deploy/oracle/setup.sh -o setup.sh
-bash setup.sh https://github.com/<아이디>/<저장소>.git
+curl -fsSL https://raw.githubusercontent.com/inseo1321312-netizen/ai-invest-assistant/main/deploy/oracle/setup.sh -o setup.sh
+bash setup.sh https://github.com/inseo1321312-netizen/ai-invest-assistant.git
 ```
 1. 처음 실행하면 설정 파일 `/etc/invest.env`를 만들고 멈춥니다. `sudo nano /etc/invest.env`로 1번에서 준비한 값을 채우고 저장합니다(Ctrl+O, Enter, Ctrl+X). 값은 아래 2-B의 환경변수 표와 같습니다.
-2. `bash setup.sh <저장소 주소>`를 한 번 더 실행합니다. 서버가 켜지고, Tailscale 로그인 주소가 나오면 브라우저로 열어 로그인합니다.
+2. `bash setup.sh https://github.com/inseo1321312-netizen/ai-invest-assistant.git`를 한 번 더 실행합니다. 서버가 켜지고, Tailscale 로그인 주소가 나오면 브라우저로 열어 로그인합니다.
 3. 마지막에 `https://<서버이름>.<tailnet>.ts.net` 주소가 나옵니다. 이게 앱 주소입니다.
 
-서버는 재부팅해도 자동으로 다시 켜집니다. 코드가 바뀌면 같은 `bash setup.sh <저장소 주소>`를 다시 실행하면 업데이트됩니다.
+서버는 재부팅해도 자동으로 다시 켜집니다. 코드가 바뀌면 같은 `bash setup.sh https://github.com/inseo1321312-netizen/ai-invest-assistant.git`를 다시 실행하면 업데이트됩니다.
 
 ### ⑤ 폰과 PC 연결
 1. 폰과 PC에 **Tailscale 앱**을 설치하고, 서버와 **같은 계정**으로 로그인합니다.
