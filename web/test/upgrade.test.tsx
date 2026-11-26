@@ -1,0 +1,133 @@
+import { afterEach, describe, expect, test, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { mockServer, overview, sseResponse } from './fakeServer';
+
+vi.mock('lightweight-charts', () => {
+  const series = () => ({ setData: () => {}, applyOptions: () => {} });
+  return {
+    CandlestickSeries: 'c', HistogramSeries: 'h', LineSeries: 'l', createSeriesMarkers: () => ({}),
+    createChart: () => ({
+      addSeries: series, subscribeClick: () => {}, unsubscribeClick: () => {},
+      timeScale: () => ({ fitContent: () => {}, setVisibleRange: () => {} }), priceScale: () => ({ applyOptions: () => {} }), remove: () => {},
+    }),
+  };
+});
+
+import App from '../src/App';
+import { ChatView } from '../src/components/ChatView';
+import { HoldingsList } from '../src/components/HoldingsList';
+import { InstrumentView } from '../src/components/InstrumentView';
+
+afterEach(() => vi.unstubAllGlobals());
+
+const MODELS = {
+  lists: {
+    claude: [{ id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5' }, { id: 'claude-opus-5-5', label: 'Claude Opus 5.5' }],
+    gpt: [{ id: 'gpt-6-luna', label: 'GPT-6 Luna' }, { id: 'gpt-6.2-sol', label: 'GPT-6.2 Sol' }],
+  },
+  defaults: { claude: { light: 'claude-haiku-5-5', standard: 'claude-sonnet-5-5', deep: 'claude-opus-5-5' }, gpt: { light: 'gpt-6-luna', standard: 'gpt-6-luna', deep: 'gpt-6.2-sol' } },
+};
+const USAGE = { today: { interactive: 0.42, scheduled: 0.1 }, month: 3.2, gptMonth: 0, limits: { interactiveDailyUsd: 3, scheduledDailyUsd: 1.5, monthlyUsd: 80 }, requests: { gpt5h: 12, gptToday: 20, claudeToday: 4 }, gptLimitHitAt: null };
+const answer = (text: string) => sseResponse([{ type: 'chat', chatId: 9 }, { type: 'text', delta: text }, { type: 'done', text, provider: 'gpt', model: 'gpt-6.2-sol', costUsd: 0 }]);
+
+describe('chat upgrade', () => {
+  test('model picker lists ChatGPT models and sends the chosen model', async () => {
+    const s = mockServer({ '/api/ai/models': () => MODELS, '/api/usage': () => USAGE, '/api/chats': () => ({ chats: [] }), 'POST /api/chat': () => answer('답') });
+    render(<ChatView keyId={null} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'AI 모델 선택' }));
+    const sheet = await screen.findByRole('dialog', { name: '모델 선택' });
+    await userEvent.click(within(sheet).getByRole('tab', { name: 'GPT' }));
+    await userEvent.click(within(sheet).getByRole('radio', { name: /GPT-6.2 Sol/ }));
+    expect(screen.getByRole('button', { name: 'AI 모델 선택' }).textContent).toContain('GPT-6.2 Sol');
+    await userEvent.type(screen.getByLabelText('메시지'), '안녕');
+    await userEvent.click(screen.getByRole('button', { name: '보내기' }));
+    await waitFor(() => expect(s.calls.find((c) => c.method === 'POST' && c.url.pathname === '/api/chat')?.body).toMatchObject({ provider: 'gpt', model: 'gpt-6.2-sol' }));
+    expect(await screen.findByText('답')).toBeTruthy();
+  });
+
+  test('usage pill shows Claude spend, ChatGPT request count, and details sheet', async () => {
+    mockServer({ '/api/ai/models': () => MODELS, '/api/usage': () => USAGE, '/api/chats': () => ({ chats: [] }) });
+    render(<ChatView keyId={null} />);
+    expect(await screen.findByText('오늘 $0.42')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: '사용량' }));
+    const sheet = await screen.findByRole('dialog', { name: '사용량' });
+    expect(within(sheet).getByText('12회')).toBeTruthy();
+    expect(within(sheet).getByRole('link', { name: 'ChatGPT 사용량 열기' }).getAttribute('href')).toBe('https://chatgpt.com/settings/usage');
+  });
+
+  test('reopens the recent conversation for the same symbol and continues it', async () => {
+    const s = mockServer({
+      '/api/ai/models': () => MODELS, '/api/usage': () => USAGE,
+      '/api/chats': () => ({ chats: [{ id: 5, key: 'coin:BTC-USDT', title: '살까?', createdAt: Date.now() - 60_000 }] }),
+      '/api/chats/5/messages': () => ({ messages: [{ id: 1, role: 'user', text: '살까?', provider: null }, { id: 2, role: 'assistant', text: '기다려 보세요', provider: 'claude' }] }),
+      'POST /api/chat': () => answer('네'),
+    });
+    render(<ChatView keyId="coin:BTC-USDT" onClose={() => {}} />);
+    expect(await screen.findByText('기다려 보세요')).toBeTruthy();
+    await userEvent.type(screen.getByLabelText('메시지'), '그럼?');
+    await userEvent.click(screen.getByRole('button', { name: '보내기' }));
+    await waitFor(() => expect(s.calls.find((c) => c.method === 'POST' && c.url.pathname === '/api/chat')?.body).toMatchObject({ chatId: 5, key: 'coin:BTC-USDT' }));
+  });
+});
+
+describe('holdings upgrade', () => {
+  test('manual holding sheet posts a leveraged position', async () => {
+    const s = mockServer({ '/api/market/coin/overview': () => overview(), 'POST /api/manual-holdings': () => ({ id: 1 }) });
+    render(<HoldingsList market="coin" onOpen={() => {}} />);
+    await userEvent.click(await screen.findByRole('button', { name: /보유 직접 입력/ }));
+    const sheet = await screen.findByRole('dialog', { name: '보유 직접 입력' });
+    await userEvent.type(within(sheet).getByLabelText('종목'), 'eth');
+    await userEvent.click(within(sheet).getByRole('radio', { name: '롱' }));
+    await userEvent.type(within(sheet).getByLabelText('수량'), '2');
+    await userEvent.type(within(sheet).getByLabelText('평균 단가'), '3000');
+    await userEvent.type(within(sheet).getByLabelText('레버리지(배)'), '5');
+    await userEvent.click(within(sheet).getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(s.calls.find((c) => c.method === 'POST')?.body).toEqual({ key: 'coin:ETH-USDT-SWAP', quantity: 2, avgPrice: 3000, side: 'long', leverage: 5 }));
+  });
+
+  test('manual holding sheet rejects empty quantity', async () => {
+    mockServer({ '/api/market/coin/overview': () => overview() });
+    render(<HoldingsList market="coin" onOpen={() => {}} />);
+    await userEvent.click(await screen.findByRole('button', { name: /보유 직접 입력/ }));
+    const sheet = await screen.findByRole('dialog', { name: '보유 직접 입력' });
+    await userEvent.type(within(sheet).getByLabelText('종목'), 'btc');
+    await userEvent.click(within(sheet).getByRole('button', { name: '저장' }));
+    expect(await within(sheet).findByText('수량은 0보다 커야 해요')).toBeTruthy();
+  });
+});
+
+describe('instrument upgrade', () => {
+  test('choosing 단타 switches the chart to 5-minute candles; indicator toggles', async () => {
+    const s = mockServer({ '/api/market/candles': () => ({ candles: [] }), '/api/analysis/latest': () => ({ analyses: [] }), '/api/market/quote': () => ({ quote: { price: 100, changePct24h: 1, currency: 'USDT', time: 0 } }) });
+    render(<InstrumentView keyId="coin:BTC-USDT" onClose={() => {}} onChat={() => {}} />);
+    await userEvent.click(await screen.findByRole('radio', { name: '단타' }));
+    await waitFor(() => expect(s.calls.some((c) => c.url.pathname === '/api/market/candles' && c.url.searchParams.get('bar') === '5m')).toBe(true));
+    const rsi = screen.getByRole('button', { name: 'RSI' });
+    expect(rsi.getAttribute('aria-pressed')).toBe('false');
+    await userEvent.click(rsi);
+    expect(rsi.getAttribute('aria-pressed')).toBe('true');
+    expect(await screen.findByText('100 USDT')).toBeTruthy();
+  });
+});
+
+describe('shell', () => {
+  test('ticker item opens a detail sheet; bottom nav switches to chat', async () => {
+    mockServer({
+      '/api/me': () => ({ loggedIn: true }),
+      '/api/feed': () => ({ items: [{ id: 1, createdAt: 1, day: 'd', kind: 'breaking', market: 'coin', key: 'coin:BTC-USDT', title: '비트코인 급락', body: 'ETF 자금 유출', isBreaking: true }] }),
+      '/api/market/coin/overview': () => overview(),
+      '/api/ai/models': () => MODELS, '/api/usage': () => USAGE, '/api/chats': () => ({ chats: [] }),
+    });
+    localStorage.setItem('tab', 'coin');
+    render(<App />);
+    const banner = await screen.findByRole('region', { name: '오늘의 소식' });
+    await userEvent.click(await within(banner).findByRole('button', { name: /비트코인 급락/ }));
+    const sheet = await screen.findByRole('dialog', { name: '[속보]' });
+    expect(within(sheet).getByText('ETF 자금 유출')).toBeTruthy();
+    expect(within(sheet).getByRole('button', { name: '차트와 AI 분석 보기' })).toBeTruthy();
+    await userEvent.click(within(sheet).getByRole('button', { name: '닫기' }));
+    await userEvent.click(screen.getByRole('button', { name: /AI 상담/ }));
+    expect(await screen.findByRole('region', { name: 'AI 채팅' })).toBeTruthy();
+  });
+});

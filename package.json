@@ -1,0 +1,20 @@
+{
+  "name": "ai-invest-assistant",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "npm run test -w server && npm run test -w web && node --test scripts/check-secrets.test.mjs",
+    "build": "npm run build -w web && npm run build -w server",
+    "start": "node server/dist/index.js",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "prepare": "git config core.hooksPath .githooks || exit 0",
+    "siwc:login": "npm run siwc:login -w server --"
+  }
+}

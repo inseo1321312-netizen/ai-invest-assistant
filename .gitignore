@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+data/
+*.db
+*.db-*
+siwc-tokens*.json
+.superpowers/
+coverage/
+
+# 개인 자료(공개 저장소에 올리지 않음)
+docs/superpowers/
+reports/
+research_notes/
+.claude/

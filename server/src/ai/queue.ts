@@ -1,0 +1,28 @@
+/** 콜백에서 넣은 값을 for await로 꺼내는 단순 큐. */
+export class AsyncQueue<T> implements AsyncIterable<T> {
+  private items: T[] = [];
+  private waiters: ((r: IteratorResult<T>) => void)[] = [];
+  private closed = false;
+
+  push(item: T) {
+    if (this.closed) return;
+    const w = this.waiters.shift();
+    if (w) w({ value: item, done: false });
+    else this.items.push(item);
+  }
+
+  close() {
+    this.closed = true;
+    for (const w of this.waiters.splice(0)) w({ value: undefined as never, done: true });
+  }
+
+  [Symbol.asyncIterator](): AsyncIterator<T> {
+    return {
+      next: () => {
+        if (this.items.length) return Promise.resolve({ value: this.items.shift()!, done: false });
+        if (this.closed) return Promise.resolve({ value: undefined as never, done: true });
+        return new Promise((r) => this.waiters.push(r));
+      },
+    };
+  }
+}
