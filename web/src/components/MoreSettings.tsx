@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { themeTransition } from '../motion';
 import { api } from '../api';
 import { applyPrefs, readPrefs, savePrefs, type Prefs, type Theme, type UpDown } from '../prefs';
 import { Segmented, useToast } from '../ui';
@@ -6,20 +7,24 @@ import { Segmented, useToast } from '../ui';
 /** 화면: 다크·라이트 모드, 상승·하락 색 */
 export function DisplaySettings() {
   const [p, setP] = useState<Prefs>(readPrefs);
+  const tap = useRef<{ x: number; y: number } | undefined>(undefined);
   const update = (next: Prefs) => {
-    setP(next);
     savePrefs(next);
-    applyPrefs(next);
+    const run = () => { setP(next); applyPrefs(next); };
+    if (next.theme !== p.theme || next.updown !== p.updown) themeTransition(run, tap.current);
+    else run();
   };
   return (
     <section className="panel" id="set-display" aria-label="화면">
       <h2>화면</h2>
+      <div onPointerDown={(e) => { tap.current = { x: e.clientX, y: e.clientY }; }}>
       <p className="set-label">모드</p>
       <Segmented small kind="radio" label="화면 모드" value={p.theme} onChange={(theme: Theme) => update({ ...p, theme })}
         options={[{ value: 'system', label: '휴대폰 설정' }, { value: 'light', label: '라이트' }, { value: 'dark', label: '다크' }]} />
       <p className="set-label">상승·하락 색</p>
       <Segmented small kind="radio" label="상승 하락 색" value={p.updown} onChange={(updown: UpDown) => update({ ...p, updown })}
         options={[{ value: 'kr', label: '빨강 상승' }, { value: 'global', label: '초록 상승' }]} />
+      </div>
       <p className="small muted" style={{ marginBottom: 0 }}>
         {p.updown === 'kr' ? '한국식: 오르면 빨강, 내리면 파랑' : '해외식: 오르면 초록, 내리면 빨강'}
       </p>

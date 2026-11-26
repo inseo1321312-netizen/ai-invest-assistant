@@ -3,6 +3,7 @@ import { api } from '../api';
 import { changeClass } from '../format';
 import { marketStatus } from '../insights';
 import type { OverviewId, OverviewItem } from '../types';
+import { useTweened } from '../motion';
 
 const SESSION: Partial<Record<OverviewId, 'kr' | 'us'>> = { kospi: 'kr', kosdaq: 'kr', spx: 'us', nasdaq: 'us' };
 
@@ -16,7 +17,9 @@ function valueText(it: OverviewItem): string {
   return it.value.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
-function Tile({ it, now }: { it: OverviewItem; now: Date }) {
+function Tile({ it: raw, now }: { it: OverviewItem; now: Date }) {
+  const tweened = useTweened(raw.value ?? 0);
+  const it = raw.value === null ? raw : { ...raw, value: tweened };
   const session = SESSION[it.id];
   const open = session ? marketStatus(session, now).open : null;
   const sub = it.changePct !== null ? signed(it.changePct) : it.note;

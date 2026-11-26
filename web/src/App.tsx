@@ -1,4 +1,5 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react';
+import { navigate } from './motion';
 import { api, ApiError, setUnauthorizedHandler } from './api';
 import { ChatView } from './components/ChatView';
 import { FeedBanner } from './components/FeedBanner';
@@ -70,23 +71,29 @@ function Shell() {
   const [instrument, setInstrument] = useState<string | null>(null);
   const [chatKey, setChatKey] = useState<string | null>(null);
 
-  useEffect(() => {
+  // 화면이 바뀌면 맨 위부터(전환 효과가 새 화면을 찍기 전에 올린다)
+  useLayoutEffect(() => {
     document.scrollingElement?.scrollTo?.({ top: 0 });
   }, [tab, instrument]);
 
+  const open = (key: string) => navigate('forward', () => setInstrument(key));
+
   function go(t: Tab) {
-    setInstrument(null);
-    if (t === 'chat') setChatKey(null);
-    setTab(t);
+    if (t === tab && !instrument) return;
+    navigate(instrument && t === 'home' ? 'back' : 'tab', () => {
+      setInstrument(null);
+      if (t === 'chat') setChatKey(null);
+      setTab(t);
+    });
   }
 
   let body;
   if (tab === 'home' && instrument) {
-    body = <InstrumentView key={instrument} keyId={instrument} onClose={() => setInstrument(null)} onChat={(k) => { setChatKey(k); setTab('chat'); }} />;
+    body = <InstrumentView key={instrument} keyId={instrument} onClose={() => navigate('back', () => setInstrument(null))} onChat={(k) => navigate('forward', () => { setChatKey(k); setTab('chat'); })} />;
   } else if (tab === 'home') {
-    body = <Home onOpen={setInstrument} />;
+    body = <Home onOpen={open} />;
   } else if (tab === 'chat') {
-    body = <ChatView key={chatKey ?? 'all'} keyId={chatKey} onClose={chatKey ? () => { setTab('home'); setInstrument(chatKey); } : undefined} />;
+    body = <ChatView key={chatKey ?? 'all'} keyId={chatKey} onClose={chatKey ? () => navigate('back', () => { setTab('home'); setInstrument(chatKey); }) : undefined} />;
   } else {
     body = <SettingsView />;
   }

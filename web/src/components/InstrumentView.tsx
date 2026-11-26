@@ -5,6 +5,7 @@ import { yearStats } from '../insights';
 import { streamSse } from '../sse';
 import type { Analysis, Bar, Candle, HistoryItem, Horizon, NewsItem, ProviderId, Quote } from '../types';
 import { Dots, Icon, Segmented, Sheet, useFlash, useToast } from '../ui';
+import { useTweened } from '../motion';
 import { InstrumentInfo } from './InstrumentInfo';
 import { NewsList, NewsStrip } from './NewsStrip';
 import { AnalysisPanel, emptyRun, PROVIDER_LABEL, type RunState } from './AnalysisPanel';
@@ -99,6 +100,7 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
   }, [keyId, runningNow]);
   const aborts = useRef<AbortController[]>([]);
   const flash = useFlash(quote?.price);
+  const shownPrice = useTweened(quote?.price ?? 0);
 
   useEffect(() => () => aborts.current.forEach((a) => a.abort()), []);
 
@@ -212,7 +214,7 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
       </header>
 
       <div className="price-hero">
-        <p className={`price num ${flash}`}>{quote ? formatPrice(quote.price, quote.currency) : <span className="skeleton" style={{ display: 'inline-block', width: 160, height: 30 }} />}</p>
+        <p className={`price num ${flash}`}>{quote ? formatPrice(shownPrice || quote.price, quote.currency) : <span className="skeleton" style={{ display: 'inline-block', width: 160, height: 30 }} />}</p>
         {quote && <div className="sub"><span className={`change num ${changeClass(quote.changePct24h)}`}>{formatPct(quote.changePct24h)}</span><span className="small muted">{isCoin ? '24시간' : '전일 대비'}</span></div>}
         {stats && quote && (
           <div className="range rise" role="img" aria-label={`1년 가격 범위에서 ${Math.round(stats.position * 100)}% 위치`}>

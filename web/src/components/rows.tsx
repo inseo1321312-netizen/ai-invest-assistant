@@ -3,6 +3,7 @@ import { changeClass, formatPct, formatPrice, formatTimeKst, HORIZON_LABEL } fro
 import { hueOf } from '../insights';
 import type { Badge, Currency, MarketId } from '../types';
 import { useFlash } from '../ui';
+import { useTweened } from '../motion';
 
 type Inst = { market: MarketId; symbol: string; name: string | null };
 
@@ -39,9 +40,10 @@ export function BadgeChip({ badge }: { badge: Badge }) {
 
 export function PriceCell({ price, currency, change }: { price: number | null; currency: Currency; change: number | null }) {
   const flash = useFlash(price);
+  const shown = useTweened(price ?? 0);
   return (
     <span className="row-right">
-      <span className={`row-price num ${flash}`}>{price !== null ? formatPrice(price, currency) : '—'}</span>
+      <span className={`row-price num ${flash}`}>{price !== null ? formatPrice(shown, currency) : '—'}</span>
       {change !== null && <span className={`change num ${changeClass(change)}`}>{formatPct(change)}</span>}
     </span>
   );

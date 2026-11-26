@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { motionOk } from './motion';
 import { createPortal } from 'react-dom';
 
 /* ── 아이콘(선 아이콘, currentColor) ─────────────────── */
@@ -26,20 +27,26 @@ export const Icon = {
 
 /* ── 바텀 시트 ─────────────────────────────────────── */
 export function Sheet({ title, onClose, children, full = false }: { title: string; onClose: () => void; children: ReactNode; full?: boolean }) {
+  const [closing, setClosing] = useState(false);
+  const close = useCallback(() => {
+    if (!motionOk()) { onClose(); return; }
+    setClosing(true);
+    setTimeout(onClose, 230);
+  }, [onClose]);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [close]);
   // body에 그려서 부모의 transform·overflow 영향을 받지 않게 한다
   return createPortal(
     <>
-      <div className="sheet-backdrop" onClick={onClose} />
-      <div className={`sheet${full ? ' full' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`sheet-backdrop${closing ? ' closing' : ''}`} onClick={close} />
+      <div className={`sheet${full ? ' full' : ''}${closing ? ' closing' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="sheet-handle" />
         <div className="sheet-head">
           <h2>{title}</h2>
-          <button type="button" className="icon-btn" aria-label="닫기" onClick={onClose}><Icon.close /></button>
+          <button type="button" className="icon-btn" aria-label="닫기" onClick={close}><Icon.close /></button>
         </div>
         {children}
       </div>

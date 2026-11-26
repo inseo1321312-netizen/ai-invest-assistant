@@ -619,7 +619,44 @@ a.btn { text-decoration: none; color: var(--ink); }
 .toast { position: fixed; left: 50%; bottom: calc(var(--nav-space) + 14px); z-index: 60; transform: translateX(-50%); padding: 11px 18px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 14px; font-weight: 700; box-shadow: var(--shadow-float); animation: toast-in 320ms var(--spring) both; max-width: calc(100% - 32px); }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 14px) scale(0.96); } to { opacity: 1; transform: translate(-50%, 0); } }
 
+/* ── 화면 전환(View Transitions) ─────────────────────── */
+.bottom-nav { view-transition-name: tabbar; }
+::view-transition-group(tabbar) { animation: none; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 340ms; animation-timing-function: var(--ease); }
+:root[data-nav='forward']::view-transition-old(root) { animation-name: vt-out-left; }
+:root[data-nav='forward']::view-transition-new(root) { animation-name: vt-in-right; }
+:root[data-nav='back']::view-transition-old(root) { animation-name: vt-out-right; }
+:root[data-nav='back']::view-transition-new(root) { animation-name: vt-in-left; }
+:root[data-nav='tab']::view-transition-old(root) { animation-name: vt-fade-out; animation-duration: 180ms; }
+:root[data-nav='tab']::view-transition-new(root) { animation-name: vt-fade-up; animation-duration: 300ms; }
+:root[data-nav='theme']::view-transition-old(root) { animation: none; }
+:root[data-nav='theme']::view-transition-new(root) { animation: vt-reveal 620ms cubic-bezier(0.4, 0, 0.2, 1) both; }
+@keyframes vt-in-right { from { transform: translateX(32%); opacity: 0; } }
+@keyframes vt-out-left { to { transform: translateX(-14%); opacity: 0; } }
+@keyframes vt-in-left { from { transform: translateX(-14%); opacity: 0; } }
+@keyframes vt-out-right { to { transform: translateX(32%); opacity: 0; } }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-up { from { opacity: 0; transform: translateY(8px) scale(0.995); } }
+@keyframes vt-reveal { from { clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 50%)); } to { clip-path: circle(var(--vt-r, 150%) at var(--vt-x, 50%) var(--vt-y, 50%)); } }
+/* 전환 효과가 되는 브라우저에서는 화면별 등장 효과를 겹치지 않게 끈다 */
+@supports (view-transition-name: none) { .screen { animation: none; } }
+
+/* 전환 효과가 없는 브라우저: 색만 천천히 바꾼다 */
+:root.theme-fade, :root.theme-fade *, :root.theme-fade *::before, :root.theme-fade *::after {
+  transition: background-color 450ms var(--ease), color 450ms var(--ease), border-color 450ms var(--ease), fill 450ms var(--ease), stroke 450ms var(--ease) !important;
+}
+
+/* 바텀 시트 닫힘 */
+.sheet.closing { animation: sheet-down 230ms cubic-bezier(0.4, 0, 1, 1) both; }
+.sheet-backdrop.closing { animation: fade-out 230ms ease both; }
+@keyframes sheet-down { from { transform: translate(-50%, 0); } to { transform: translate(-50%, 100%); } }
+@keyframes fade-out { to { opacity: 0; } }
+
+/* 숫자가 바뀌는 동안 글자 폭이 흔들리지 않게 */
+.row-price, .price-hero .price, .ov-value { font-variant-numeric: tabular-nums; }
+
 @media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
   .ticker-list.marquee { animation: none !important; }
 }
