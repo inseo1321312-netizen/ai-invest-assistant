@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { MarketService } from '../market/service.js';
 import type { Holding, Instrument, MarketId, Quote } from '../market/types.js';
 import { BARS, instrumentKey, MARKETS, parseInstrumentKey } from '../market/types.js';
+import type { Sentiment } from '../market/sentiment.js';
 
 export interface Badge { opinion: string; confidence: '낮음' | '중간' | '높음'; dataTime: number; provider: 'claude' | 'gpt' }
 export type BadgeLookup = (keys: string[]) => Map<string, Badge>;
@@ -28,6 +29,7 @@ export function registerMarketRoutes(app: FastifyInstance, deps: {
   market: MarketService;
   connected: { okx: boolean; kis: boolean };
   badgeLookup?: BadgeLookup;
+  sentiment?: (() => Promise<Sentiment | null>) | null;
 }) {
   const svc = deps.market;
   const badges = deps.badgeLookup ?? (() => new Map<string, Badge>());
@@ -105,6 +107,8 @@ export function registerMarketRoutes(app: FastifyInstance, deps: {
       return reply.code(502).send({ error: `${sourceName(inst.market)} 데이터를 가져오지 못했습니다` });
     }
   });
+
+  app.get('/api/market/sentiment', async () => ({ sentiment: deps.sentiment ? await deps.sentiment().catch(() => null) : null }));
 
   app.post('/api/watchlist', async (req, reply) => {
     const parsed = z.object({ key: keySchema }).safeParse(req.body);

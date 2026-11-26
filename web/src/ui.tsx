@@ -16,6 +16,8 @@ export const Icon = {
   history: () => svg(<><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></>),
   close: () => svg(<path d="M18 6 6 18M6 6l12 12" />),
   chevron: () => svg(<path d="m6 9 6 6 6-6" />),
+  stop: () => <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" /></svg>,
+  spark: () => svg(<><path d="M12 3v4M12 17v4M3 12h4M17 12h4" /><path d="m6 6 2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18" /></>),
 };
 
 /* ── 바텀 시트 ─────────────────────────────────────── */

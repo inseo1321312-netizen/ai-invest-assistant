@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { AiRequest } from '../ai/types.js';
-import { latestAnalyses, runTimingAnalysis } from '../features/analysis.js';
+import { analysisHistory, latestAnalyses, runTimingAnalysis } from '../features/analysis.js';
 import { chatMessages, chatTurn, listChats } from '../features/chat.js';
 import type { FeatureDeps } from '../features/deps.js';
 import { explainPoint } from '../features/explainPoint.js';
@@ -47,6 +47,12 @@ export function registerAiRoutes(app: FastifyInstance, deps: FeatureDeps & { cat
     const p = z.object({ key, horizon: z.enum(HORIZONS as ['scalp', 'swing', 'long']) }).safeParse(req.query);
     if (!p.success) return reply.code(400).send({ error: '잘못된 요청입니다' });
     return { analyses: latestAnalyses(deps.db, p.data.key, p.data.horizon) };
+  });
+
+  app.get('/api/analysis/history', async (req, reply) => {
+    const p = z.object({ key }).safeParse(req.query);
+    if (!p.success) return reply.code(400).send({ error: '잘못된 요청입니다' });
+    return { items: analysisHistory(deps.db, p.data.key) };
   });
 
   app.get('/api/chats', async (req) => {

@@ -43,4 +43,6 @@ export interface Analysis {
   news: { title: string; url: string; date: string | null }[];
 }
 
+export interface HistoryItem { id: number; horizon: Horizon; provider: ProviderId; opinion: string; confidence: Confidence; dataTime: number; createdAt: number; tier: string; origin: string }
+
 export interface ChartSpec { key: string; bar: Bar; from: number | null; to: number | null; markers: { time: number; text: string }[] }

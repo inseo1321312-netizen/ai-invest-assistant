@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { api, ApiError, post } from '../api';
-import { changeClass, formatKrwApprox, formatPct, formatPrice, formatTimeKst, HORIZON_LABEL, parseUserSymbol } from '../format';
+import { changeClass, formatKrwApprox, formatPct, formatPrice, formatTimeKst, HORIZON_LABEL, MARKET_LABEL, parseUserSymbol } from '../format';
+import { allocation, hueOf } from '../insights';
 import type { Badge, HoldingView, MarketId, Overview, QuoteView } from '../types';
 import { Icon, Segmented, Sheet, SkeletonList, Sparkline, useFlash } from '../ui';
 
@@ -15,6 +16,11 @@ function initials(h: { instrument: { market: MarketId; symbol: string; name: str
   if (market === 'coin') return symbol.split('-')[0]!.slice(0, 4);
   if (market === 'kr') return (name ?? symbol).slice(0, 2);
   return symbol.slice(0, 4);
+}
+
+function Avatar({ inst }: { inst: { market: MarketId; symbol: string; name: string | null } }) {
+  const text = initials({ instrument: inst });
+  return <span className={`avatar ${inst.market}`} style={{ '--h': hueOf(inst.symbol) } as CSSProperties} aria-hidden="true">{text}</span>;
 }
 
 /** 코인은 BTC를 크게, USDT·무기한을 작게 보여준다 */
@@ -50,7 +56,7 @@ function HoldingRow({ h, spark, onOpen }: { h: HoldingView; spark?: number[]; on
   const liqDist = h.liqPrice && price ? (Math.abs(price - h.liqPrice) / price) * 100 : null;
   return (
     <button type="button" className="row" onClick={() => onOpen(h.key)}>
-      <span className={`avatar ${h.instrument.market}`} aria-hidden="true">{initials(h)}</span>
+      <Avatar inst={h.instrument} />
       <span className="row-name">
         {h.side && <span className={`side ${h.side}`}>{h.side === 'long' ? '롱' : '숏'}{h.leverage ? ` ${num(h.leverage)}x` : ''}</span>}
         <DisplayName inst={h.instrument} />
@@ -77,7 +83,7 @@ function HoldingRow({ h, spark, onOpen }: { h: HoldingView; spark?: number[]; on
 function WatchRow({ w, spark, onOpen }: { w: QuoteView; spark?: number[]; onOpen: (key: string) => void }) {
   return (
     <button type="button" className="row" onClick={() => onOpen(w.key)}>
-      <span className={`avatar ${w.instrument.market}`} aria-hidden="true">{initials(w)}</span>
+      <Avatar inst={w.instrument} />
       <span className="row-name"><DisplayName inst={w.instrument} /></span>
       <PriceCell price={w.quote?.price ?? null} currency={w.quote?.currency ?? 'USDT'} change={w.quote?.changePct24h ?? null} />
       <span className="row-sub num">{w.krwValue !== null && w.quote?.currency !== 'KRW' ? formatKrwApprox(w.krwValue) : ''}</span>
@@ -131,6 +137,109 @@ function ManualHoldingSheet({ market, onClose, onSaved }: { market: MarketId; on
         <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 8 }}>저장</button>
       </form>
     </Sheet>
+  );
+}
+
+/** 코인 시장 공포·탐욕 지수(0 공포 ~ 100 탐욕) */
+function SentimentCard() {
+  const [s, setS] = useState<{ value: number; label: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api<{ sentiment: { value: number; label: string } | null }>('/api/market/sentiment')
+      .then((r) => { if (alive) setS(r.sentiment); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+  if (!s) return null;
+  return (
+    <section className="mood rise" aria-label="공포·탐욕 지수">
+      <div className="mood-top">
+        <span className="mood-title">공포·탐욕 지수</span>
+        <span className="mood-label">{s.label}</span>
+        <b className="mood-value num">{s.value}</b>
+      </div>
+      <div className="mood-bar"><i style={{ left: `${Math.min(100, Math.max(0, s.value))}%` }} /></div>
+      <div className="mood-ends"><span>공포</span><span>탐욕</span></div>
+    </section>
+  );
+}
+
+function holdingLabel(h: HoldingView): string {
+  const { market, symbol, name } = h.instrument;
+  const base = market === 'coin' ? symbol.split('-')[0]! : (name ?? symbol);
+  return h.side ? `${base} ${h.side === 'long' ? '롱' : '숏'}` : base;
+}
+
+/** 원화 손익(현물·주식만). 선물은 USDT 미실현 손익을 따로 보여준다. */
+function spotProfit(rows: HoldingView[]): { profit: number; cost: number } {
+  let profit = 0;
+  let cost = 0;
+  for (const h of rows) {
+    if (h.side || h.krwValue === null || h.pnlPct === null || h.pnlPct <= -100) continue;
+    const c = h.krwValue / (1 + h.pnlPct / 100);
+    cost += c;
+    profit += h.krwValue - c;
+  }
+  return { profit, cost };
+}
+
+const RADIUS = 34;
+const CIRC = 2 * Math.PI * RADIUS;
+
+function Ring({ slices, count }: { slices: ReturnType<typeof allocation>; count: number }) {
+  let offset = 0;
+  return (
+    <svg className="ring" viewBox="0 0 84 84" role="img" aria-label="종목 비중">
+      <circle className="track" cx="42" cy="42" r={RADIUS} />
+      {slices.map((sl, i) => {
+        const len = (sl.pct / 100) * CIRC;
+        const el = (
+          <circle key={sl.key} cx="42" cy="42" r={RADIUS} stroke={sliceColor(sl, i)} strokeDasharray={`${Math.max(0, len - (slices.length > 1 ? 2 : 0))} ${CIRC}`}
+            strokeDashoffset={-offset} transform="rotate(-90 42 42)" strokeLinecap="butt" />
+        );
+        offset += len;
+        return el;
+      })}
+      <text x="42" y="46" textAnchor="middle">{count}종목</text>
+    </svg>
+  );
+}
+
+/** 비중 순서대로 서로 잘 구분되는 색 */
+const SLICE_COLORS = ['#8f93ff', '#3dd6c3', '#ffb86b', '#ff7ab6', '#b7e36b'];
+function sliceColor(sl: { key: string }, i: number): string {
+  return sl.key === '__rest' ? 'rgba(255,255,255,0.35)' : SLICE_COLORS[i % SLICE_COLORS.length]!;
+}
+
+function Hero({ market, data, futures, total, pnlUsdt }: { market: MarketId; data: Overview; futures: HoldingView[]; total: number; pnlUsdt: number }) {
+  const slices = allocation(data.holdings.map((h) => ({ key: `${h.key}-${h.side ?? ''}-${h.manualId ?? ''}`, label: holdingLabel(h), value: h.krwValue ?? 0 })), 4);
+  const { profit, cost } = spotProfit(data.holdings);
+  const pct = cost > 0 ? (profit / cost) * 100 : null;
+  const won = (n: number) => formatKrwApprox(n).replace('≈ ', '');
+  return (
+    <section className="hero rise" aria-label="보유 요약">
+      <div className="hero-top">
+        <div style={{ minWidth: 0 }}>
+          <p className="hero-label">{MARKET_LABEL[market]} 평가금액{market !== 'kr' ? '(원화 환산)' : ''}</p>
+          <p className="hero-value num">{total ? won(total) : '—'}</p>
+          {pct !== null && (
+            <p className={`hero-pnl num ${changeClass(pct)}`}>{profit > 0 ? '+' : ''}{won(profit)} ({formatPct(pct)})</p>
+          )}
+        </div>
+        {slices.length > 0 && <Ring slices={slices} count={data.holdings.length} />}
+      </div>
+      <div className="hero-chips">
+        <span className="hero-chip">보유 {data.holdings.length}</span>
+        {data.watchlist.length > 0 && <span className="hero-chip">관심 {data.watchlist.length}</span>}
+        {futures.some((h) => h.unrealizedPnl !== null) && <span className={`hero-chip num ${changeClass(pnlUsdt)}`}>미실현 {pnlUsdt > 0 ? '+' : ''}{num(Math.round(pnlUsdt * 100) / 100)} USDT</span>}
+        {market !== 'kr' && data.usdKrw && <span className="hero-chip num">환율 {Math.round(data.usdKrw).toLocaleString('ko-KR')}원</span>}
+      </div>
+      {slices.length > 1 && (
+        <ul className="legend" aria-label="비중">
+          {slices.map((sl, i) => <li key={sl.key}><i style={{ background: sliceColor(sl, i) }} /><span>{sl.label}</span><b className="num">{sl.pct.toFixed(0)}%</b></li>)}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -204,19 +313,12 @@ export function HoldingsList({ market, onOpen }: { market: MarketId; onOpen: (ke
 
   return (
     <div>
+      {!data && !error && <div className="hero loading" aria-hidden="true"><span className="skeleton" style={{ display: 'block', width: 120, height: 14 }} /><span className="skeleton" style={{ display: 'block', width: 200, height: 34, marginTop: 10 }} /></div>}
       {data && data.holdings.length > 0 && (
-        <section className="summary fade-in" aria-label="보유 요약">
-          <p className="summary-label">평가금액(원화 환산)</p>
-          <p className="summary-value num">{total ? formatKrwApprox(total).replace('≈ ', '') : '—'}</p>
-          <div className="summary-chips">
-            <span className="chip">보유 {data.holdings.length}</span>
-            {data.watchlist.length > 0 && <span className="chip">관심 {data.watchlist.length}</span>}
-            {futures.length > 0 && <span className={`chip num ${changeClass(pnlUsdt)}`}>미실현 {pnlUsdt > 0 ? '+' : ''}{num(Math.round(pnlUsdt * 100) / 100)} USDT</span>}
-            {market !== 'kr' && data.usdKrw && <span className="chip num">환율 {Math.round(data.usdKrw).toLocaleString('ko-KR')}원</span>}
-          </div>
-        </section>
+        <Hero market={market} data={data} futures={futures} total={total} pnlUsdt={pnlUsdt} />
       )}
 
+      {market === 'coin' && <SentimentCard />}
       {error && <p className="notice" role="alert">{error}</p>}
       {data?.errors.map((m) => <p key={m} className="notice">{m}</p>)}
       {data && !data.connected && <p className="notice">{SOURCE[market]} 계정이 연결되지 않았어요. 직접 입력한 종목과 관심 종목만 보여요.</p>}

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
-import { changeClass, formatDateTimeKst, formatPct, formatPrice } from '../format';
+import { changeClass, formatDateTimeKst, formatPct, formatPrice, formatTimeKst, HORIZON_LABEL } from '../format';
+import { yearStats } from '../insights';
 import { streamSse } from '../sse';
-import type { Analysis, Bar, Horizon, ProviderId, Quote } from '../types';
+import type { Analysis, Bar, Candle, HistoryItem, Horizon, ProviderId, Quote } from '../types';
 import { Dots, Icon, Segmented, Sheet, useFlash } from '../ui';
 import { AnalysisPanel, emptyRun, PROVIDER_LABEL, type RunState } from './AnalysisPanel';
 import { CandleChart, DEFAULT_INDICATORS, type Indicators } from './CandleChart';
@@ -59,6 +60,19 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
   const [quote, setQuote] = useState<Quote | null>(null);
   const [runs, setRuns] = useState<Partial<Record<ProviderId, RunState>>>({});
   const [explainAt, setExplainAt] = useState<number | null>(null);
+  const [daily, setDaily] = useState<Candle[] | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const runningNow = Object.values(runs).some((r) => r?.running);
+
+  // 지난 AI 의견. 분석이 끝날 때마다 다시 불러온다.
+  useEffect(() => {
+    if (runningNow) return;
+    let alive = true;
+    api<{ items: HistoryItem[] }>(`/api/analysis/history?key=${encodeURIComponent(keyId)}`)
+      .then((r) => { if (alive && Array.isArray(r.items)) setHistory(r.items); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [keyId, runningNow]);
   const aborts = useRef<AbortController[]>([]);
   const flash = useFlash(quote?.price);
 
@@ -70,6 +84,15 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
     void load();
     const t = setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 15_000);
     return () => { alive = false; clearInterval(t); };
+  }, [keyId]);
+
+  // 1년 범위·변동폭 계산용 일봉
+  useEffect(() => {
+    let alive = true;
+    api<{ candles: Candle[] }>(`/api/market/candles?key=${encodeURIComponent(keyId)}&bar=1D&limit=365`)
+      .then((r) => { if (alive && Array.isArray(r.candles)) setDaily(r.candles); })
+      .catch(() => undefined);
+    return () => { alive = false; };
   }, [keyId]);
 
   useEffect(() => {
@@ -110,6 +133,8 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
   const anyRunning = Object.values(runs).some((r) => r?.running);
   const other: ProviderId = runs.claude?.analysis && !runs.gpt?.analysis ? 'gpt' : runs.gpt?.analysis && !runs.claude?.analysis ? 'claude' : 'gpt';
   const title = keyId.split(':').slice(1).join(':');
+  const stats = quote && daily && daily.length > 1 ? yearStats(daily, quote.price, Math.floor(Date.now() / 1000)) : null;
+  const compact = (n: number) => new Intl.NumberFormat('ko-KR', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 
   return (
     <div className="screen" role="region" aria-label={`${keyId} 상세`}>
@@ -122,6 +147,12 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
       <div className="price-hero">
         <p className={`price num ${flash}`}>{quote ? formatPrice(quote.price, quote.currency) : <span className="skeleton" style={{ display: 'inline-block', width: 160, height: 30 }} />}</p>
         {quote && <div className="sub"><span className={`change num ${changeClass(quote.changePct24h)}`}>{formatPct(quote.changePct24h)}</span><span className="small muted">{isCoin ? '24시간' : '전일 대비'}</span></div>}
+        {stats && quote && (
+          <div className="range rise" role="img" aria-label={`1년 가격 범위에서 ${Math.round(stats.position * 100)}% 위치`}>
+            <div className="range-bar"><i style={{ left: `${stats.position * 100}%` }} /></div>
+            <div className="range-ends num"><span>1년 최저 {formatPrice(stats.low, quote.currency)}</span><span>최고 {formatPrice(stats.high, quote.currency)}</span></div>
+          </div>
+        )}
       </div>
 
       <section className="card" aria-label="차트">
@@ -134,11 +165,33 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
         </div>
         <p className="hint">캔들을 누르면 그때 왜 움직였는지 AI가 찾아봐요.</p>
       </section>
+      {stats && (
+        <dl className="stats rise" aria-label="주요 지표">
+          <div><dt>1년 최고가 대비</dt><dd className={`num ${changeClass(stats.fromHighPct)}`}>{formatPct(stats.fromHighPct)}</dd></div>
+          <div><dt>30일 하루 변동폭</dt><dd className="num">±{stats.volatility30.toFixed(1)}%</dd></div>
+          <div><dt>30일 평균 거래량</dt><dd className="num">{compact(stats.avgVolume30)}</dd></div>
+          <div><dt>1년 범위 위치</dt><dd className="num">{Math.round(stats.position * 100)}%</dd></div>
+        </dl>
+      )}
       {explainAt !== null && <ExplainSheet keyId={keyId} bar={bar} time={explainAt} onClose={() => setExplainAt(null)} />}
 
       <div className="section-head"><h2 className="section-title">AI 타이밍 분석</h2></div>
       <Segmented kind="radio" label="분석 기간" options={HORIZON_OPTIONS} value={horizon} onChange={changeHorizon} />
       <AnalysisPanel runs={runs} isSwap={isSwap} />
+
+      {history.length > 1 && (
+        <>
+          <div className="section-head"><h2 className="section-title">AI 의견 기록</h2></div>
+          <ul className="history" aria-label="AI 의견 기록">
+            {history.map((h) => (
+              <li key={h.id}>
+                <b>{h.opinion}</b>
+                <span>{PROVIDER_LABEL[h.provider]} {HORIZON_LABEL[h.horizon]}{h.tier === 'deep' ? ' 심층' : ''}, {formatTimeKst(h.dataTime)} 기준</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       <div className="sticky-actions">
         <button type="button" className="btn btn-ai" disabled={anyRunning} onClick={() => run('claude', false)}>AI 타이밍 분석</button>

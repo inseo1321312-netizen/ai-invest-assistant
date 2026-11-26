@@ -6,6 +6,7 @@ import type { ChartSpec, ProviderId } from '../types';
 import { Dots, Icon, Segmented, Sheet, usd } from '../ui';
 import { PROVIDER_LABEL } from './AnalysisPanel';
 import { CandleChart } from './CandleChart';
+import { Markdown } from '../markdown';
 
 interface Msg {
   id: number;
@@ -185,6 +186,11 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
     }, ctrl.signal).finally(() => { update(answerId, (m) => ({ ...m, running: false, status: null })); void loadUsage(); });
   }
 
+  function stop() {
+    aborts.current.forEach((a) => a.abort());
+    aborts.current = [];
+  }
+
   function submit(e?: FormEvent) {
     e?.preventDefault();
     const text = input.trim();
@@ -227,8 +233,10 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
 
       <div className="messages">
         {messages.length === 0 && (
-          <div className="empty" style={{ margin: 0 }}>
-            <p style={{ margin: 0 }}>사도 될지, 언제 팔지 고민을 적어 보세요. AI가 시세와 뉴스를 확인하고 같이 따져 봐요.</p>
+          <div className="chat-empty rise">
+            <div className="orb" aria-hidden="true"><Icon.spark /></div>
+            <h2>무엇이든 물어보세요</h2>
+            <p>사도 될지, 언제 팔지 고민을 적어 보세요. AI가 시세와 뉴스를 확인하고 같이 따져 봐요.</p>
             <div className="suggestions">
               {SUGGESTIONS.map((s) => <button key={s} type="button" onClick={() => ask(s, pref.provider, true)}>{s}</button>)}
             </div>
@@ -236,11 +244,11 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
         )}
         {messages.map((m) => (
           <div key={m.id} className={`msg msg-${m.role}`}>
-            {m.role === 'assistant' && <p className="msg-who">{labelOf(m.provider!, m.model)}</p>}
+            {m.role === 'assistant' && <p className="msg-who"><span className={`provider-dot ${m.provider}`} aria-hidden="true" />{labelOf(m.provider!, m.model)}</p>}
             {m.charts.map((c, i) => (
               <div key={i} className="chart-card"><CandleChart keyId={c.key} bar={c.bar} markers={c.markers} from={c.from} to={c.to} height={200} /></div>
             ))}
-            {m.text && <p className="msg-text">{m.text}</p>}
+            {m.text && (m.role === 'assistant' ? <Markdown text={m.text} /> : <p className="msg-text">{m.text}</p>)}
             {m.running && <p className="status" aria-live="polite"><Dots /> {m.status ?? '생각 중…'}</p>}
             {m.error && <p className="error" role="alert">{m.error}</p>}
             {m.role === 'assistant' && !m.running && m.question && (
@@ -260,7 +268,9 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
         <textarea aria-label="메시지" rows={1} value={input} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }}
           placeholder={`${PROVIDER_LABEL[pref.provider]}에게 물어보기`} />
-        <button className="send-btn" type="submit" aria-label="보내기" disabled={busy || !input.trim()}><Icon.send /></button>
+        {busy
+          ? <button className="send-btn stop" type="button" aria-label="멈추기" onClick={stop}><Icon.stop /></button>
+          : <button className="send-btn" type="submit" aria-label="보내기" disabled={!input.trim()}><Icon.send /></button>}
       </form>
 
       {sheet === 'model' && <ModelSheet models={models} provider={pref.provider} model={pref.model} onPick={pick} onClose={() => setSheet(null)} />}

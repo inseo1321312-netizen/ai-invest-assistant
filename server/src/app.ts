@@ -4,6 +4,7 @@ import type { Db } from './db.js';
 import { registerAuth } from './auth.js';
 import type { MarketService } from './market/service.js';
 import { registerMarketRoutes, type BadgeLookup } from './http/marketRoutes.js';
+import type { Sentiment } from './market/sentiment.js';
 import { registerAdminRoutes } from './http/adminRoutes.js';
 import type { SiwcTokenStore } from './ai/siwcTokens.js';
 import { registerAiRoutes } from './http/aiRoutes.js';
@@ -37,6 +38,8 @@ export interface AppDeps {
   catalog: ModelCatalog;
   persistence?: Persistence | null;
   checkClaude?: (() => Promise<void>) | null;
+  /** 코인 공포·탐욕 지수 */
+  sentiment?: (() => Promise<Sentiment | null>) | null;
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {

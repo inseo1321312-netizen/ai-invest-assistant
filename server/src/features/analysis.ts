@@ -56,6 +56,17 @@ export function latestAnalyses(db: Db, key: string, horizon: Horizon): StoredAna
   return rows.map(fromRow);
 }
 
+export interface HistoryItem { id: number; horizon: Horizon; provider: ProviderId; opinion: string; confidence: string; dataTime: number; createdAt: number; tier: string; origin: string }
+
+/** 한 종목의 지난 AI 의견(기간·공급자 상관없이), 최신 순 */
+export function analysisHistory(db: Db, key: string, limit = 12): HistoryItem[] {
+  const rows = db.sql.prepare('SELECT * FROM analyses WHERE key = ? ORDER BY created_at DESC, id DESC LIMIT ?').all(key, limit) as unknown as Row[];
+  return rows.map((r) => {
+    const a = fromRow(r);
+    return { id: a.id, horizon: a.horizon, provider: a.provider, opinion: a.opinion, confidence: a.confidence, dataTime: a.dataTime, createdAt: a.createdAt, tier: a.tier, origin: a.origin };
+  });
+}
+
 /** 종목별 최신 스윙 분석 → 목록 배지 */
 export function badgeLookupFor(db: Db): BadgeLookup {
   const stmt = db.sql.prepare("SELECT * FROM analyses WHERE key = ? AND horizon = 'swing' ORDER BY id DESC LIMIT 1");

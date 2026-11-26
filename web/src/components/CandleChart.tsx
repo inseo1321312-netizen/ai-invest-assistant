@@ -11,6 +11,11 @@ const INTRADAY: Bar[] = ['1m', '5m', '15m', '1H', '4H'];
 export interface Indicators { ma: boolean; bb: boolean; rsi: boolean; macd: boolean }
 export const DEFAULT_INDICATORS: Indicators = { ma: true, bb: false, rsi: false, macd: false };
 
+function fmt(n: number): string {
+  const abs = Math.abs(n);
+  return n.toLocaleString('en-US', abs >= 100 ? { maximumFractionDigits: 2 } : abs >= 1 ? { maximumFractionDigits: 4 } : { maximumSignificantDigits: 4 });
+}
+
 function cssVar(name: string, fallback: string): string {
   if (typeof window === 'undefined') return fallback;
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
@@ -29,6 +34,7 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
   const box = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [ohlc, setOhlc] = useState<{ open: number; high: number; low: number; close: number } | null>(null);
   const clickRef = useRef(onPointClick);
   clickRef.current = onPointClick;
   const extraPanes = Number(indicators.rsi) + Number(indicators.macd);
@@ -56,6 +62,8 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
           rightPriceScale: { borderVisible: false },
           timeScale: { timeVisible: INTRADAY.includes(bar), secondsVisible: false, borderVisible: false },
           crosshair: { mode: 1 },
+          handleScroll: { vertTouchDrag: false, mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true },
+          handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: true },
           localization: { locale: 'ko-KR' },
         });
         const t = (s: number) => (s + KST) as UTCTimestamp;
@@ -91,6 +99,16 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
           chart.addSeries(LineSeries, lineOpts(muted), p).setData(toLine(m.signal));
         }
 
+        // 손가락(마우스)이 있는 캔들의 시가·고가·저가·종가, 없으면 마지막 캔들
+        const last = candles[candles.length - 1];
+        const lastOhlc = last ? { open: last.open, high: last.high, low: last.low, close: last.close } : null;
+        setOhlc(lastOhlc);
+        const onMove = (p: { seriesData?: Map<unknown, unknown> }) => {
+          const d = p.seriesData?.get(candleSeries) as { open: number; high: number; low: number; close: number } | undefined;
+          setOhlc(d && typeof d.open === 'number' ? d : lastOhlc);
+        };
+        chart.subscribeCrosshairMove?.(onMove as never);
+
         if (markers.length) {
           createSeriesMarkers(candleSeries, markers.map((m) => ({ time: t(m.time), position: 'aboveBar' as const, color: ai, shape: 'arrowDown' as const, text: m.text })));
         }
@@ -100,7 +118,7 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
           if (typeof p.time === 'number') clickRef.current?.(p.time - KST);
         };
         chart.subscribeClick(onClick as never);
-        cleanup = () => { chart.unsubscribeClick(onClick as never); chart.remove(); };
+        cleanup = () => { chart.unsubscribeClick(onClick as never); chart.unsubscribeCrosshairMove?.(onMove as never); chart.remove(); };
       })
       .catch((e) => { if (alive) { setLoading(false); setError(e instanceof ApiError ? e.message : '차트를 불러오지 못했어요'); } });
     return () => { alive = false; cleanup(); };
@@ -110,6 +128,12 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
 
   return (
     <div style={{ position: 'relative' }}>
+      {ohlc && !loading && !error && (
+        <div className="ohlc num" aria-hidden="true">
+          <span>시 <b>{fmt(ohlc.open)}</b></span><span>고 <b>{fmt(ohlc.high)}</b></span><span>저 <b>{fmt(ohlc.low)}</b></span><span>종 <b>{fmt(ohlc.close)}</b></span>
+          <span className={ohlc.close >= ohlc.open ? 'up' : 'down'}>{ohlc.open ? `${ohlc.close >= ohlc.open ? '+' : ''}${(((ohlc.close - ohlc.open) / ohlc.open) * 100).toFixed(2)}%` : ''}</span>
+        </div>
+      )}
       <div ref={box} role="img" aria-label={`${keyId} ${bar} 차트`} style={{ height: totalHeight, width: '100%' }} />
       {loading && !error && <div className="skeleton" style={{ position: 'absolute', inset: 0 }} aria-hidden="true" />}
       {error && <p className="notice" style={{ margin: 0 }}>{error}</p>}

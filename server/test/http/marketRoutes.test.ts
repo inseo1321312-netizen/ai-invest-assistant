@@ -96,3 +96,13 @@ test('sparklines return last 30 daily closes per key, skipping failures', async 
   expect(body.sparklines['kr:005930']).toBeUndefined();
   expect(okx.calls[0]).toMatchObject({ bar: '1D' });
 });
+
+test('sentiment route returns the index, or null when it is not set up', async () => {
+  const deps = testDeps();
+  const app = await buildApp({ ...deps, sentiment: async () => ({ value: 61, label: '탐욕', updatedAt: 1 }) });
+  const cookie = await loginCookie(app);
+  expect((await app.inject({ method: 'GET', url: '/api/market/sentiment', headers: { cookie } })).json()).toEqual({ sentiment: { value: 61, label: '탐욕', updatedAt: 1 } });
+  const bare = await buildApp(testDeps());
+  const c2 = await loginCookie(bare);
+  expect((await bare.inject({ method: 'GET', url: '/api/market/sentiment', headers: { cookie: c2 } })).json()).toEqual({ sentiment: null });
+});

@@ -4,6 +4,7 @@ import pg from 'pg';
 import { loadConfig } from './config.js';
 import { openDb } from './db.js';
 import { buildApp } from './app.js';
+import { createSentiment } from './market/sentiment.js';
 import { createOkxClient } from './market/okx.js';
 import { createKisClient } from './market/kis.js';
 import { createMarketService } from './market/service.js';
@@ -92,6 +93,7 @@ async function main() {
   const app = await buildApp({
     config, db, now, market, connected: { okx: config.okx !== null, kis: config.kis !== null }, siwc, runAi: router.runAi,
     push, runBriefing, catchUp, settings: { router, budget }, catalog, persistence, checkClaude,
+    sentiment: createSentiment({ fetch, now: Date.now }),
     webDist: path.resolve(import.meta.dirname, '../../web/dist'),
   });
   startScheduler({ briefing: runBriefing, spikes: () => checkSpikesAndLiquidation(featureDeps) });
