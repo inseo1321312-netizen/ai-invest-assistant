@@ -70,3 +70,14 @@ test('analysis history lists past opinions for one instrument, newest first', as
   expect(res.items[0]).toMatchObject({ provider: 'gpt', horizon: 'long', confidence: '높음', dataTime: 200 });
   expect((await app.inject({ method: 'GET', url: '/api/analysis/history?key=nope', headers: { cookie } })).statusCode).toBe(400);
 });
+
+test('all chats can be deleted at once', async () => {
+  const deps = testDeps();
+  deps.runAi = fakeRunAi([[{ text: '안녕' }]]).runAi;
+  const app = await buildApp(deps);
+  const cookie = await loginCookie(app);
+  await app.inject({ method: 'POST', url: '/api/chat', headers: { cookie }, payload: { chatId: null, key: null, provider: 'claude', text: 'hi' } });
+  expect((await app.inject({ method: 'GET', url: '/api/chats', headers: { cookie } })).json().chats).toHaveLength(1);
+  expect((await app.inject({ method: 'DELETE', url: '/api/chats', headers: { cookie } })).json()).toEqual({ ok: true });
+  expect((await app.inject({ method: 'GET', url: '/api/chats', headers: { cookie } })).json().chats).toEqual([]);
+});

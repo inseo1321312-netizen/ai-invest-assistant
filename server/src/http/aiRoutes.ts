@@ -55,6 +55,11 @@ export function registerAiRoutes(app: FastifyInstance, deps: FeatureDeps & { cat
     return { items: analysisHistory(deps.db, p.data.key) };
   });
 
+  app.delete('/api/chats', async () => {
+    deps.db.sql.exec('DELETE FROM chat_messages; DELETE FROM chats;');
+    return { ok: true };
+  });
+
   app.get('/api/chats', async (req) => {
     const k = (req.query as { key?: string }).key ?? null;
     return { chats: listChats(deps.db, k) };

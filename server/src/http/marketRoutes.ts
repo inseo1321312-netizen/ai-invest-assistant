@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Db } from '../db.js';
-import { listRecent, recordView } from '../features/recent.js';
+import { clearRecent, listRecent, recordView } from '../features/recent.js';
 import type { MarketService } from '../market/service.js';
 import type { Instrument, MarketId, Quote } from '../market/types.js';
 import { BARS, instrumentKey, MARKETS, parseInstrumentKey } from '../market/types.js';
@@ -98,6 +98,11 @@ export function registerMarketRoutes(app: FastifyInstance, deps: {
   });
 
   app.get('/api/market/sentiment', async () => ({ sentiment: deps.sentiment ? await deps.sentiment().catch(() => null) : null }));
+
+  app.delete('/api/recent', async () => {
+    clearRecent(deps.db);
+    return { ok: true };
+  });
 
   app.post('/api/recent', async (req, reply) => {
     const parsed = z.object({ key: keySchema }).safeParse(req.body);

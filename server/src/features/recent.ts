@@ -12,6 +12,10 @@ export function recordView(db: Db, key: string, nowMs: number): void {
   db.sql.prepare('DELETE FROM recent_views WHERE key NOT IN (SELECT key FROM recent_views ORDER BY viewed_at DESC LIMIT ?)').run(KEEP);
 }
 
+export function clearRecent(db: Db): void {
+  db.sql.exec('DELETE FROM recent_views');
+}
+
 /** 최근 본 순서. exclude(즐겨찾기 등)는 뺀다. */
 export function listRecent(db: Db, market: MarketId, limit: number, exclude: Set<string>): string[] {
   const rows = db.sql.prepare('SELECT key FROM recent_views WHERE market = ? ORDER BY viewed_at DESC').all(market) as { key: string }[];

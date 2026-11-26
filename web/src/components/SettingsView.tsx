@@ -4,6 +4,9 @@ import { formatDateTimeKst } from '../format';
 import { useToast, usd } from '../ui';
 import { AlertSettings } from './AlertSettings';
 import { ChatgptConnect } from './ChatgptConnect';
+import { AboutSettings, DataSettings, DisplaySettings } from './MoreSettings';
+
+const MENU: [string, string][] = [['set-display', '화면'], ['set-ai', 'AI'], ['set-alerts', '알림'], ['set-check', '연결 점검'], ['set-data', '데이터'], ['set-about', '앱 정보']];
 
 interface Settings {
   models: Record<'claude' | 'gpt', Record<'light' | 'standard' | 'deep', string>>;
@@ -139,9 +142,16 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
         <h1>설정</h1>
         <span />
       </header>
+      <nav className="set-menu" aria-label="설정 메뉴">
+        {MENU.map(([id, label]) => (
+          <button key={id} type="button" aria-label={`${label} 항목으로 이동`} onClick={() => document.getElementById(id)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}>{label}</button>
+        ))}
+      </nav>
+
+      <DisplaySettings />
 
       {usage && s && (
-        <section className="panel">
+        <section className="panel" id="set-ai">
           <h2>AI 사용액</h2>
           <UsageBar label="오늘 직접 사용" used={usage.today.interactive} limit={s.budget.interactiveDailyUsd} />
           <UsageBar label="오늘 예약 작업" used={usage.today.scheduled} limit={s.budget.scheduledDailyUsd} />
@@ -199,7 +209,7 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
         </section>
       )}
 
-      <section className="panel">
+      <section className="panel" id="set-check">
         <h2>연결 점검</h2>
         <p className="small muted" style={{ marginTop: 0 }}>거래소·증권사·AI·데이터 저장이 제대로 연결됐는지 확인해요.</p>
         <button type="button" className="btn btn-block" disabled={diagBusy} onClick={runDiagnose}>{diagBusy ? '점검 중…' : '연결 점검'}</button>
@@ -212,7 +222,7 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
         )}
       </section>
 
-      <AlertSettings />
+      <div id="set-alerts"><AlertSettings /></div>
 
       <section className="panel">
         <h2>알림과 브리핑</h2>
@@ -229,6 +239,9 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
           </div>
         )}
       </section>
+
+      <DataSettings />
+      <AboutSettings />
 
       <section className="panel">
         <button type="button" className="btn btn-block" onClick={logout}>로그아웃</button>
