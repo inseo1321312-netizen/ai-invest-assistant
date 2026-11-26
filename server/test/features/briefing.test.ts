@@ -33,7 +33,7 @@ function setup(opts: { coin?: Holding[]; kr?: Holding[]; us?: Holding[]; change?
   const market = createMarketService({ okx, kis, db, now: clock.now, fx: async () => 1400 });
   const ai = fakeRunAi(opts.script ?? []);
   const sent: { title: string; body: string }[] = [];
-  const push = { subscribe() {}, async sendAll(p: { title: string; body: string; url: string }) { sent.push(p); } };
+  const push = { subscribe() {}, publicKey: () => 'test-key', async sendAll(p: { title: string; body: string; url: string }) { sent.push(p); } };
   return { deps: { db, market, runAi: ai.runAi, now: clock.now, push }, ai, sent, clock, db };
 }
 
@@ -169,13 +169,6 @@ describe('push and scheduler', () => {
     expect((db.sql.prepare('SELECT COUNT(*) AS n FROM push_subs').get() as { n: number }).n).toBe(1);
   });
 
-  test('push without vapid does nothing', async () => {
-    let called = false;
-    const push = createPush({ vapid: null, db: openDb(':memory:'), send: async () => { called = true; return {} as never; } });
-    push.subscribe({ endpoint: 'https://push/a', keys: { p256dh: 'p', auth: 'a' } });
-    await push.sendAll({ title: 't', body: 'b', url: '/' });
-    expect(called).toBe(false);
-  });
 
   test('scheduler registers 08:00 and hourly :05 jobs in Asia/Seoul', () => {
     const jobs: { pattern: string; opts: Record<string, unknown> }[] = [];
@@ -186,5 +179,33 @@ describe('push and scheduler', () => {
     expect(jobs.map((j) => j.pattern)).toEqual(['0 8 * * *', '5 * * * *']);
     expect(jobs.every((j) => j.opts.timezone === 'Asia/Seoul' && j.opts.protect === true)).toBe(true);
     s.stop();
+  });
+});
+
+describe('catch-up when the app opens (server was asleep)', () => {
+  test('runs today briefing once after 08:00 KST when none exists', async () => {
+    const { ensureCatchUp } = await import('../../src/features/briefing.js');
+    const { deps, ai } = setup({ coin: [h('coin:BTC-USDT')], script: [[briefingSubmit([{ key: 'coin:BTC-USDT', isBreaking: false, opinion: '유지' }])]] });
+    await ensureCatchUp(deps);
+    await ensureCatchUp(deps);
+    expect(ai.requests.filter((r) => r.instructions.includes('아침 브리핑')).length).toBe(1);
+    expect(listFeed(deps.db, '2026-11-26').some((f) => f.kind === 'briefing')).toBe(true);
+  });
+
+  test('does not run the briefing before 08:00 KST', async () => {
+    const { ensureCatchUp } = await import('../../src/features/briefing.js');
+    const { deps, ai } = setup({ coin: [h('coin:BTC-USDT')], now: Date.UTC(2026, 10, 25, 22, 0) }); // KST 07:00
+    await ensureCatchUp(deps);
+    expect(ai.requests.filter((r) => r.instructions.includes('아침 브리핑')).length).toBe(0);
+  });
+
+  test('spike check runs at most once per 55 minutes', async () => {
+    const { ensureCatchUp } = await import('../../src/features/briefing.js');
+    const { deps, clock, ai } = setup({ coin: [h('coin:SOL-USDT')], change: { 'coin:SOL-USDT': 7 }, script: [[], [{ text: '이유' }], [{ text: '또' }]] });
+    await ensureCatchUp(deps);
+    const afterFirst = ai.calls();
+    clock.advance(10 * 60_000);
+    await ensureCatchUp(deps);
+    expect(ai.calls()).toBe(afterFirst);
   });
 });

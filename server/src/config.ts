@@ -11,6 +11,10 @@ export interface Config {
   okx: { key: string; secret: string; passphrase: string } | null;
   kis: { appKey: string; appSecret: string; accountNo: string; productCode: string } | null;
   vapid: { publicKey: string; privateKey: string; subject: string } | null;
+  /** 스냅샷을 저장할 Postgres(Neon) 주소. 없으면 디스크에만 저장 */
+  databaseUrl: string | null;
+  /** 앱의 공개 주소(푸시 알림 발신자 표시용) */
+  publicUrl: string | null;
 }
 
 const opt = z.string().optional().transform((v) => (v && v.trim() !== '' ? v.trim() : null));
@@ -33,6 +37,9 @@ const schema = z.object({
   VAPID_PUBLIC_KEY: opt,
   VAPID_PRIVATE_KEY: opt,
   VAPID_SUBJECT: opt,
+  DATABASE_URL: opt,
+  PUBLIC_URL: opt,
+  RENDER_EXTERNAL_URL: opt,
 });
 
 export function loadConfig(env: NodeJS.ProcessEnv | Record<string, string | undefined>): Config {
@@ -59,5 +66,7 @@ export function loadConfig(env: NodeJS.ProcessEnv | Record<string, string | unde
     vapid: e.VAPID_PUBLIC_KEY && e.VAPID_PRIVATE_KEY && e.VAPID_SUBJECT
       ? { publicKey: e.VAPID_PUBLIC_KEY, privateKey: e.VAPID_PRIVATE_KEY, subject: e.VAPID_SUBJECT }
       : null,
+    databaseUrl: e.DATABASE_URL,
+    publicUrl: e.PUBLIC_URL ?? e.RENDER_EXTERNAL_URL,
   };
 }

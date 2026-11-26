@@ -16,6 +16,8 @@ import type { AiRouter } from './ai/router.js';
 import type { Budget } from './ai/budget.js';
 import { registerStatic } from './static.js';
 import type { ModelCatalog } from './ai/modelCatalog.js';
+import { registerDiagnoseRoutes } from './http/diagnoseRoutes.js';
+import type { Persistence } from './persist.js';
 
 export interface AppDeps {
   config: Config;
@@ -28,10 +30,13 @@ export interface AppDeps {
   runAi: RunAi;
   push: Push;
   runBriefing?: () => Promise<void>;
+  catchUp?: () => Promise<void>;
   settings: { router: AiRouter; budget: Budget };
   /** 화면 빌드 폴더(web/dist). 없으면 API만 제공 */
   webDist?: string;
   catalog: ModelCatalog;
+  persistence?: Persistence | null;
+  checkClaude?: (() => Promise<void>) | null;
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
@@ -42,7 +47,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerMarketRoutes(app, { ...deps, badgeLookup: deps.badgeLookup ?? badgeLookupFor(deps.db) });
   registerAdminRoutes(app, deps);
   registerAiRoutes(app, deps);
-  registerFeedRoutes(app, { ...deps, vapidPublicKey: deps.config.vapid?.publicKey ?? null });
+  registerFeedRoutes(app, { ...deps, vapidPublicKey: deps.push.publicKey() });
   registerSettingsRoutes(app, deps);
+  registerDiagnoseRoutes(app, deps);
   return app;
 }

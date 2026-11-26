@@ -34,3 +34,13 @@ test('defaults port 8080 and dataDir /data', () => {
 test('empty strings count as unset', () => {
   expect(loadConfig({ ...base, ANTHROPIC_API_KEY: '' }).anthropicApiKey).toBeNull();
 });
+
+test('DATABASE_URL is optional', () => {
+  expect(loadConfig(base).databaseUrl).toBeNull();
+  expect(loadConfig({ ...base, DATABASE_URL: 'postgresql://u:p@h/db?sslmode=require' }).databaseUrl).toBe('postgresql://u:p@h/db?sslmode=require');
+});
+
+test('public URL comes from PUBLIC_URL or Render', () => {
+  expect(loadConfig(base).publicUrl).toBeNull();
+  expect(loadConfig({ ...base, RENDER_EXTERNAL_URL: 'https://x.onrender.com' }).publicUrl).toBe('https://x.onrender.com');
+});

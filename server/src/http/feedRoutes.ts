@@ -11,12 +11,15 @@ export function registerFeedRoutes(app: FastifyInstance, deps: {
   push: Push;
   vapidPublicKey: string | null;
   runBriefing?: () => Promise<void>;
+  /** 앱이 소식을 불러갈 때 밀린 작업(오늘 브리핑, 급변 확인)을 뒤에서 돌린다 */
+  catchUp?: () => Promise<void>;
 }) {
   let briefingRunning = false;
 
   app.get('/api/feed', async (req, reply) => {
     const p = z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).safeParse(req.query);
     if (!p.success) return reply.code(400).send({ error: '잘못된 요청입니다' });
+    if (deps.catchUp) void deps.catchUp().catch(() => undefined);
     return { items: listFeed(deps.db, p.data.day ?? kstDay(deps.now())) };
   });
 

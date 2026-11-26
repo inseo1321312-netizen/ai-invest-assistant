@@ -189,3 +189,35 @@ export async function checkSpikesAndLiquidation(deps: BriefingDeps): Promise<voi
     }
   }
 }
+
+const SPIKE_EVERY_MS = 55 * 60_000;
+let catchUpRunning: Promise<void> | null = null;
+
+/**
+ * 무료 서버는 앱을 열 때만 깨어나므로, 깨어날 때(그리고 앱이 소식을 불러갈 때) 밀린 작업을 한다.
+ * - 오늘 08:00(한국 시간)이 지났는데 아침 브리핑이 없으면 한 번 만든다.
+ * - 마지막 급변·청산 확인이 55분보다 오래됐으면 한 번 확인한다.
+ */
+export function ensureCatchUp(deps: BriefingDeps): Promise<void> {
+  if (!catchUpRunning) {
+    catchUpRunning = runCatchUp(deps).finally(() => { catchUpRunning = null; });
+  }
+  return catchUpRunning;
+}
+
+async function runCatchUp(deps: BriefingDeps): Promise<void> {
+  const { db } = deps;
+  const t = deps.now();
+  const lastSpikes = db.kvGet<number>('catchup.spikesAt') ?? 0;
+  if (t - lastSpikes >= SPIKE_EVERY_MS) {
+    db.kvSet('catchup.spikesAt', t);
+    await checkSpikesAndLiquidation(deps).catch((err) => console.error('급변 확인 실패', err instanceof Error ? err.message : err));
+  }
+  const day = kstDay(t);
+  const kstHour = new Date(t + 9 * 3600_000).getUTCHours();
+  const hasBriefing = listFeed(db, day).some((f) => f.kind === 'briefing');
+  if (kstHour >= 8 && !hasBriefing && db.kvGet<string>('catchup.briefingDay') !== day) {
+    db.kvSet('catchup.briefingDay', day);
+    await runMorningBriefing(deps).catch((err) => console.error('브리핑 실패', err instanceof Error ? err.message : err));
+  }
+}

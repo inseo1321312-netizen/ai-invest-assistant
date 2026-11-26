@@ -22,7 +22,7 @@ test('push subscribe validates and public key endpoint', async () => {
   const deps = testDeps();
   const app = await buildApp(deps);
   const cookie = await loginCookie(app);
-  expect((await app.inject({ method: 'GET', url: '/api/push/public-key', headers: { cookie } })).json()).toEqual({ publicKey: null });
+  expect((await app.inject({ method: 'GET', url: '/api/push/public-key', headers: { cookie } })).json().publicKey).toMatch(/^[A-Za-z0-9_-]{80,}$/);
   const bad = await app.inject({ method: 'POST', url: '/api/push/subscribe', headers: { cookie }, payload: { endpoint: 'x' } });
   expect(bad.statusCode).toBe(400);
   const ok = await app.inject({ method: 'POST', url: '/api/push/subscribe', headers: { cookie }, payload: { endpoint: 'https://push.example/1', keys: { p256dh: 'p', auth: 'a' } } });
