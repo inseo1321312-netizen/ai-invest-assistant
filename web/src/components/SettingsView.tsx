@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { api, ApiError, post } from '../api';
 import { formatDateTimeKst } from '../format';
 import { useToast, usd } from '../ui';
+import { AlertSettings } from './AlertSettings';
+import { ChatgptConnect } from './ChatgptConnect';
 
 interface Settings {
   models: Record<'claude' | 'gpt', Record<'light' | 'standard' | 'deep', string>>;
   gptMode: 'siwc' | 'apikey';
   budget: { scheduledDailyUsd: number; interactiveDailyUsd: number; monthlyUsd: number; gptMonthlyUsd: number };
-  keys: { claude: boolean; openai: boolean; okx: boolean; kis: boolean; push: boolean };
+  keys: { claude: boolean; openai: boolean; kis: boolean; push: boolean };
 }
 interface Usage { today: { interactive: number; scheduled: number }; month: number; gptMonth: number; requests?: { gpt5h: number; gptToday: number } }
 type BudgetKey = keyof Settings['budget'];
@@ -67,9 +69,13 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
       setBudgetText(Object.fromEntries(BUDGET_FIELDS.map(([k]) => [k, String(v.budget[k])])) as Record<BudgetKey, string>);
     }).catch(() => showToast('설정을 불러오지 못했어요'));
     api<Usage>('/api/usage').then(setUsage).catch(() => undefined);
-    api<{ connected: boolean; expiresAt: number | null }>('/api/admin/siwc-status').then(setSiwc).catch(() => undefined);
+    loadSiwc();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function loadSiwc() {
+    api<{ connected: boolean; expiresAt: number | null }>('/api/admin/siwc-status').then(setSiwc).catch(() => undefined);
+  }
 
   async function save() {
     if (!s || !budgetText) return;
@@ -91,7 +97,7 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
   async function enablePush() {
     try {
       const { publicKey } = await api<{ publicKey: string | null }>('/api/push/public-key');
-      if (!publicKey) return showToast('서버에 알림 키(VAPID)가 없어요. 배포 안내서를 확인하세요');
+      if (!publicKey) return showToast('서버에 알림 키가 아직 없어요. 잠시 뒤 다시 눌러 주세요');
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) return showToast('이 브라우저에서는 알림을 받을 수 없어요');
       if ((await Notification.requestPermission()) !== 'granted') return showToast('알림 권한을 허용해야 받을 수 있어요');
       const reg = await navigator.serviceWorker.ready;
@@ -158,9 +164,13 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
           {s.gptMode === 'siwc' && (
             <div className="small">
               <p><span className={`status-dot${siwc?.connected ? ' on' : ''}`} />ChatGPT {siwc?.connected ? `연결됨${siwc.expiresAt ? ` (토큰 갱신 예정 ${formatDateTimeKst(Math.floor(siwc.expiresAt / 1000))})` : ''}` : '연결 안 됨'}</p>
-              <p className="muted">PC에서 이 앱 코드 폴더를 열고 아래 명령을 실행하면 ChatGPT 로그인 창이 열려요.</p>
-              <pre className="cmd">{loginCmd}</pre>
+              {!siwc?.connected && <ChatgptConnect onConnected={loadSiwc} />}
               {siwc?.connected && <button type="button" className="btn" onClick={disconnectChatgpt}>ChatGPT 연결 끊기</button>}
+              <details style={{ marginTop: 10 }}>
+                <summary className="muted" style={{ cursor: 'pointer' }}>PC로 연결하기</summary>
+                <p className="muted">PC에서 이 앱 코드 폴더를 열고 아래 명령을 실행해도 돼요.</p>
+                <pre className="cmd">{loginCmd}</pre>
+              </details>
             </div>
           )}
           {s.gptMode === 'apikey' && !s.keys.openai && <p className="notice" style={{ margin: '8px 0 0' }}>서버에 OpenAI 키가 없어 종량제 방식을 쓸 수 없어요</p>}
@@ -202,6 +212,8 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
         )}
       </section>
 
+      <AlertSettings />
+
       <section className="panel">
         <h2>알림과 브리핑</h2>
         {!isStandalone() && <p className="small muted">아이폰은 Safari 공유 버튼에서 홈 화면에 추가한 뒤에만 알림을 받을 수 있어요.</p>}
@@ -211,8 +223,8 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
         </div>
         {s && (
           <div style={{ marginTop: 10 }} className="small">
-            <p><span className={`status-dot${s.keys.okx ? ' on' : ''}`} />OKX {s.keys.okx ? '연결됨' : '없음'}</p>
-            <p><span className={`status-dot${s.keys.kis ? ' on' : ''}`} />한국투자증권 {s.keys.kis ? '연결됨' : '없음'}</p>
+            <p><span className="status-dot on" />코인 시세(OKX·업비트) 키 없이 연결</p>
+            <p><span className={`status-dot${s.keys.kis ? ' on' : ''}`} />한국투자증권 앱키 {s.keys.kis ? '있음' : '없음(주식 시세·순위 꺼짐)'}</p>
             <p><span className={`status-dot${s.keys.push ? ' on' : ''}`} />알림 키 {s.keys.push ? '있음' : '없음'}</p>
           </div>
         )}
