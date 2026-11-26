@@ -48,3 +48,13 @@ test('remembered for 60 seconds', async () => {
   await o.get();
   expect(n).toBe(2);
 });
+
+test('index tiles carry the open/closed state when the source knows it', async () => {
+  const k = fakeKis({
+    async getIndex(code) { return code === '0001' ? { value: 2650, changePct: 0.4, open: true } : { value: 850, changePct: -0.2 }; },
+    async getUsIndex() { return { value: 6000, changePct: 0.1, open: false }; },
+  });
+  const items = await createMarketOverview({ ...base, kis: k, now: makeClock().now }).get();
+  expect(items.slice(0, 4).map((i) => i.open)).toEqual([true, null, false, false]);
+  expect(items[4]!.open).toBeNull();
+});

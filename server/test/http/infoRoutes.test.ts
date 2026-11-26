@@ -23,7 +23,7 @@ test('quote returns the display name when the catalog knows it', async () => {
 test('trending and market overview routes', async () => {
   const deps = testDeps({
     trending: { get: async (m: string, k: string) => (m === 'coin' && k === 'gainers' ? [{ key: 'coin:BTC-USDT', name: '비트코인', symbol: 'BTC', price: 1, changePct: 5, value: 1, currency: 'USDT' as const }] : []) },
-    overview: { get: async () => [{ id: 'kospi' as const, label: '코스피', value: 2650, changePct: 0.4, note: null }] },
+    overview: { get: async () => [{ id: 'kospi' as const, label: '코스피', value: 2650, changePct: 0.4, note: null, open: null }] },
   });
   const app = await buildApp(deps);
   const cookie = await loginCookie(app);

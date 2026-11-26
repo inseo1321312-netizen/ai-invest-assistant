@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
 import { useToast } from '../ui';
+import { Avatar } from './rows';
 
 interface Settings { m5: number; m15: number; h1: number; events: boolean }
 const FIELDS: [keyof Omit<Settings, 'events'>, string][] = [['m5', '5분 기준(%)'], ['m15', '15분 기준(%)'], ['h1', '1시간 기준(%)']];
@@ -58,6 +59,7 @@ export function AlertSettings() {
         <ul className="chip-list">
           {coins.map((k) => (
             <li key={k} className="chip">
+              <Avatar inst={{ market: 'coin', symbol: k.slice(5), name: coinLabel(k) }} />
               <span>{coinLabel(k)}</span>
               <button type="button" className="chip-x" aria-label={`${coinLabel(k)} 알림 끄기`} onClick={() => remove(k)}>✕</button>
             </li>

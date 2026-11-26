@@ -58,7 +58,7 @@ test('alert settings list coins, remove one, and save thresholds', async () => {
     'DELETE /api/alerts/coins': () => ({ ok: true }),
   });
   render(<AlertSettings />);
-  expect(await screen.findByText('BTC')).toBeTruthy();
+  expect(await screen.findByText('BTC', { ignore: '.avatar-text, script, style' })).toBeTruthy();
   expect(screen.getByText(/새벽 2시~6시/)).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: 'ETH 무기한 알림 끄기' }));
   await waitFor(() => expect(s.calls.some((c) => c.method === 'DELETE' && c.url.searchParams.get('key') === 'coin:ETH-USDT-SWAP')).toBe(true));

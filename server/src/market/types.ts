@@ -23,7 +23,14 @@ export interface Instrument {
 /** 캔들 배열은 항상 오래된 것 → 최신 순. time은 캔들 시작 시각(unix 초). */
 export interface Candle { time: number; open: number; high: number; low: number; close: number; volume: number }
 
-export interface Quote { instrument: Instrument; price: number; changePct24h: number; currency: Currency; time: number }
+/** 주식 장 상태. tradedAt은 마지막 체결 시각(unix 초). extended는 프리·애프터마켓(종가 대비 %) */
+export interface MarketSession {
+  open: boolean;
+  tradedAt: number | null;
+  extended: { kind: 'pre' | 'after'; open: boolean; price: number; changePct: number; tradedAt: number | null } | null;
+}
+
+export interface Quote { instrument: Instrument; price: number; changePct24h: number; currency: Currency; time: number; session?: MarketSession }
 
 export const HORIZON_BARS: Record<Horizon, { primary: Bar; primaryLimit: number; secondary: Bar; secondaryLimit: number }> = {
   scalp: { primary: '5m', primaryLimit: 288, secondary: '1H', secondaryLimit: 48 },

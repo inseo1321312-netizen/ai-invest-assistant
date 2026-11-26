@@ -3,7 +3,8 @@ import type { KisClient } from './kis.js';
 import type { Sentiment } from './sentiment.js';
 
 export type OverviewId = 'kospi' | 'kosdaq' | 'spx' | 'nasdaq' | 'usdkrw' | 'fng' | 'kimchi';
-export interface OverviewItem { id: OverviewId; label: string; value: number | null; changePct: number | null; note: string | null }
+/** open: 지수 시장이 열려 있는지(모르면 null) */
+export interface OverviewItem { id: OverviewId; label: string; value: number | null; changePct: number | null; note: string | null; open: boolean | null }
 
 const TTL_MS = 60_000;
 
@@ -32,8 +33,8 @@ export function createMarketOverview(deps: {
       safe(deps.upbit.krwPrices()),
       safe(deps.okx.getQuote('BTC-USDT')),
     ]);
-    const idx = (id: OverviewId, label: string, q: { value: number; changePct: number } | null): OverviewItem => ({
-      id, label, value: q && q.value > 0 ? q.value : null, changePct: q && q.value > 0 ? q.changePct : null, note: null,
+    const idx = (id: OverviewId, label: string, q: { value: number; changePct: number; open?: boolean } | null): OverviewItem => ({
+      id, label, value: q && q.value > 0 ? q.value : null, changePct: q && q.value > 0 ? q.changePct : null, note: null, open: q?.open ?? null,
     });
     const upbitBtc = upbit?.get('BTC') ?? null;
     const kimchi = fx && upbitBtc && okxBtc?.price ? (upbitBtc / (okxBtc.price * fx) - 1) * 100 : null;
@@ -42,9 +43,9 @@ export function createMarketOverview(deps: {
       idx('kosdaq', '코스닥', kosdaq),
       idx('spx', 'S&P500', spx),
       idx('nasdaq', '나스닥', nasdaq),
-      { id: 'usdkrw', label: '원/달러', value: fx, changePct: null, note: null },
-      { id: 'fng', label: '공포·탐욕', value: fng?.value ?? null, changePct: null, note: fng?.label ?? null },
-      { id: 'kimchi', label: '김치 프리미엄', value: kimchi, changePct: null, note: null },
+      { id: 'usdkrw', label: '원/달러', value: fx, changePct: null, note: null, open: null },
+      { id: 'fng', label: '공포·탐욕', value: fng?.value ?? null, changePct: null, note: fng?.label ?? null, open: null },
+      { id: 'kimchi', label: '김치 프리미엄', value: kimchi, changePct: null, note: null, open: null },
     ];
   }
 

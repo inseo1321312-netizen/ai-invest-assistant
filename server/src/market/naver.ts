@@ -36,6 +36,35 @@ export function parseKoNumber(s: unknown): number | null {
 
 const num = (s: unknown): number => parseKoNumber(s) ?? 0;
 /** 하락(4: 하한, 5: 하락)인데 부호가 없으면 붙인다 */
+interface Realtime {
+  closePrice?: string;
+  fluctuationsRatio?: string;
+  compareToPreviousPrice?: { code?: string };
+  marketStatus?: string;
+  localTradedAt?: string;
+  overMarketPriceInfo?: { tradingSessionType?: string; overMarketStatus?: string; overPrice?: string; localTradedAt?: string } | null;
+}
+
+const unixOf = (s: unknown): number | null => {
+  const t = typeof s === 'string' ? Date.parse(s) : NaN;
+  return Number.isFinite(t) ? Math.floor(t / 1000) : null;
+};
+
+/** 네이버 장 상태: 알면 { open }, 모르면 {} */
+const openOf = (d: Realtime): { open?: boolean } => (d.marketStatus === 'OPEN' ? { open: true } : d.marketStatus === 'CLOSE' ? { open: false } : {});
+
+/** 네이버가 알려 주는 장 상태(공휴일 포함)와 프리·애프터마켓 가격을 붙인다 */
+function withSession(quote: Quote, d: Realtime): Quote {
+  if (d.marketStatus !== 'OPEN' && d.marketStatus !== 'CLOSE') return quote;
+  const o = d.overMarketPriceInfo;
+  const over = o ? parseKoNumber(o.overPrice) : null;
+  const kind = o?.tradingSessionType === 'PRE_MARKET' ? 'pre' : o?.tradingSessionType === 'AFTER_MARKET' ? 'after' : null;
+  const extended = o && kind && over !== null && over > 0 && quote.price > 0
+    ? { kind, open: o.overMarketStatus === 'OPEN', price: over, changePct: ((over - quote.price) / quote.price) * 100, tradedAt: unixOf(o.localTradedAt) } as const
+    : null;
+  return { ...quote, session: { open: d.marketStatus === 'OPEN', tradedAt: unixOf(d.localTradedAt), extended } };
+}
+
 function signedPct(ratio: unknown, code: unknown): number {
   const v = num(ratio);
   return (code === '4' || code === '5') && v > 0 ? -v : v;
@@ -73,8 +102,8 @@ export function createNaverClient(deps: { fetch: typeof fetch; now?: () => numbe
     return inst.exchange === 'NAS' ? `${inst.symbol}.O` : inst.symbol;
   }
 
-  async function realtime(path: string): Promise<{ closePrice?: string; fluctuationsRatio?: string; compareToPreviousPrice?: { code?: string } }> {
-    const r = await get<{ datas?: { closePrice?: string; fluctuationsRatio?: string; compareToPreviousPrice?: { code?: string } }[] }>(`https://polling.finance.naver.com/api/realtime/${path}`);
+  async function realtime(path: string): Promise<Realtime> {
+    const r = await get<{ datas?: Realtime[] }>(`https://polling.finance.naver.com/api/realtime/${path}`);
     const d = r.datas?.[0];
     if (!d || !(num(d.closePrice) > 0)) throw new Error('네이버 증권 시세가 비어 있습니다');
     return d;
@@ -178,11 +207,11 @@ export function createNaverClient(deps: { fetch: typeof fetch; now?: () => numbe
     async getQuote(inst) {
       if (inst.market === 'kr') {
         const d = await realtime(`domestic/stock/${inst.symbol}`);
-        return { instrument: inst, price: num(d.closePrice), changePct24h: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code), currency: 'KRW', time: Math.floor(now() / 1000) };
+        return withSession({ instrument: inst, price: num(d.closePrice), changePct24h: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code), currency: 'KRW', time: Math.floor(now() / 1000) }, d);
       }
       if (inst.market === 'us') {
         const d = await realtime(`worldstock/stock/${encodeURIComponent(await usCode(inst))}`);
-        return { instrument: inst, price: num(d.closePrice), changePct24h: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code), currency: 'USD', time: Math.floor(now() / 1000) };
+        return withSession({ instrument: inst, price: num(d.closePrice), changePct24h: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code), currency: 'USD', time: Math.floor(now() / 1000) }, d);
       }
       throw new Error('주식 종목만 조회할 수 있습니다');
     },
@@ -205,12 +234,12 @@ export function createNaverClient(deps: { fetch: typeof fetch; now?: () => numbe
 
     async getIndex(code) {
       const d = await realtime(`domestic/index/${KR_INDEX[code]}`);
-      return { value: num(d.closePrice), changePct: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code) } satisfies IndexQuote;
+      return { value: num(d.closePrice), changePct: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code), ...openOf(d) } satisfies IndexQuote;
     },
 
     async getUsIndex(symbol) {
       const d = await realtime(`worldstock/index/${US_INDEX[symbol]}`);
-      return { value: num(d.closePrice), changePct: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code) };
+      return { value: num(d.closePrice), changePct: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code), ...openOf(d) };
     },
 
     async getBasicInfo(inst) {

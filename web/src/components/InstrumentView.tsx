@@ -9,6 +9,7 @@ import { useTweened } from '../motion';
 import { InstrumentInfo } from './InstrumentInfo';
 import { NewsList, NewsStrip } from './NewsStrip';
 import { Avatar } from './rows';
+import { SessionLine } from './SessionLine';
 import { parseKey } from '../format';
 import { AnalysisPanel, emptyRun, PROVIDER_LABEL, type RunState } from './AnalysisPanel';
 import { CandleChart, DEFAULT_INDICATORS, type Indicators } from './CandleChart';
@@ -221,6 +222,7 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
       <div className="price-hero">
         <p className={`price num ${flash}`}>{quote ? formatPrice(shownPrice || quote.price, quote.currency) : <span className="skeleton" style={{ display: 'inline-block', width: 160, height: 30 }} />}</p>
         {quote && <div className="sub"><span className={`change num ${changeClass(quote.changePct24h)}`}>{formatPct(quote.changePct24h)}</span><span className="small muted">{isCoin ? '24시간' : '전일 대비'}</span></div>}
+        {quote?.session && <SessionLine session={quote.session} currency={quote.currency} />}
         {stats && quote && (
           <div className="range rise" role="img" aria-label={`1년 가격 범위에서 ${Math.round(stats.position * 100)}% 위치`}>
             <div className="range-bar"><i style={{ left: `${stats.position * 100}%` }} /></div>

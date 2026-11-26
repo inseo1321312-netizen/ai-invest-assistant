@@ -45,6 +45,33 @@ describe('quotes', () => {
     const f = fakeFetch({ '/api/realtime/domestic/stock/005930': () => ({ datas: [] }) });
     await expect(client(f).getQuote(samsung)).rejects.toThrow();
   });
+
+  test('market session: closed with an after-market price measured from the close', async () => {
+    const f = fakeFetch({
+      '/ac': () => ac('AAPL', 'AAPL.O'),
+      '/api/realtime/worldstock/stock/AAPL.O': () => ({ datas: [{
+        closePrice: '355.58', fluctuationsRatio: '0.43', compareToPreviousPrice: { code: '2' },
+        marketStatus: 'CLOSE', localTradedAt: '2026-11-25T16:00:00-05:00',
+        overMarketPriceInfo: { tradingSessionType: 'AFTER_MARKET', overMarketStatus: 'CLOSE', overPrice: '355.10', localTradedAt: '2026-11-25T20:00:00-05:00' },
+      }] }),
+    });
+    const q = await client(f).getQuote(apple);
+    expect(q.session).toMatchObject({ open: false, tradedAt: Date.parse('2026-11-25T16:00:00-05:00') / 1000 });
+    expect(q.session?.extended).toMatchObject({ kind: 'after', open: false, price: 355.1, tradedAt: Date.parse('2026-11-25T20:00:00-05:00') / 1000 });
+    expect(q.session?.extended?.changePct).toBeCloseTo(-0.135, 3);
+  });
+
+  test('market session: open regular market without extended hours; unknown status gives no session', async () => {
+    const open = fakeFetch({ '/api/realtime/domestic/stock/005930': () => ({ datas: [{ closePrice: '171,500', fluctuationsRatio: '0.47', compareToPreviousPrice: { code: '2' }, marketStatus: 'OPEN', localTradedAt: '2026-11-26T10:00:00+09:00' }] }) });
+    expect((await client(open).getQuote(samsung)).session).toEqual({ open: true, tradedAt: Date.parse('2026-11-26T10:00:00+09:00') / 1000, extended: null });
+    const bare = fakeFetch({ '/api/realtime/domestic/stock/005930': () => ({ datas: [{ closePrice: '171,500', fluctuationsRatio: '0.47' }] }) });
+    expect((await client(bare).getQuote(samsung)).session).toBeUndefined();
+  });
+
+  test('a pre-market price that is not a number is left out', async () => {
+    const f = fakeFetch({ '/api/realtime/domestic/stock/005930': () => ({ datas: [{ closePrice: '171,500', marketStatus: 'CLOSE', localTradedAt: 'nonsense', overMarketPriceInfo: { tradingSessionType: 'PRE_MARKET', overMarketStatus: 'OPEN', overPrice: '-' } }] }) });
+    expect((await client(f).getQuote(samsung)).session).toEqual({ open: false, tradedAt: null, extended: null });
+  });
 });
 
 describe('candles', () => {
@@ -117,6 +144,16 @@ test('indices: KOSPI, KOSDAQ, S&P 500 and NASDAQ Composite', async () => {
   const c = client(f);
   expect(await c.getIndex('0001')).toEqual({ value: 4711.21, changePct: 0.29 });
   expect(await c.getUsIndex('SPX')).toEqual({ value: 6912.1, changePct: -0.31 });
+});
+
+test('indices say whether their market is open (holidays included)', async () => {
+  const f = fakeFetch({
+    '/api/realtime/domestic/index/KOSPI': () => ({ datas: [{ closePrice: '4,711.21', fluctuationsRatio: '0.29', compareToPreviousPrice: { code: '2' }, marketStatus: 'OPEN' }] }),
+    '/api/realtime/worldstock/index/.INX': () => ({ datas: [{ closePrice: '6,912.10', fluctuationsRatio: '-0.31', compareToPreviousPrice: { code: '5' }, marketStatus: 'CLOSE' }] }),
+  });
+  const c = client(f);
+  expect(await c.getIndex('0001')).toEqual({ value: 4711.21, changePct: 0.29, open: true });
+  expect(await c.getUsIndex('SPX')).toEqual({ value: 6912.1, changePct: -0.31, open: false });
 });
 
 test('fundamentals from Naver (Korean 조/억 and US USD)', async () => {

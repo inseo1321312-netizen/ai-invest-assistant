@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react';
-import { navigate } from './motion';
+import { motionOk, navigate } from './motion';
+import { PULL_TRIGGER, useNetwork, usePullToRefresh } from './gestures';
 import { api, ApiError, setUnauthorizedHandler } from './api';
 import { ChatView } from './components/ChatView';
 import { FeedBanner } from './components/FeedBanner';
@@ -43,15 +44,30 @@ function Home({ onOpen }: { onOpen: (key: string) => void }) {
     saveTab(m);
   }
 
+  function reload() {
+    setSpin(true);
+    setRefresh((n) => n + 1);
+  }
+
+  const pull = usePullToRefresh(reload);
+
+  // 인터넷이 다시 연결되면 홈을 새로 고친다
+  useEffect(() => {
+    const on = () => reload();
+    window.addEventListener('online', on);
+    return () => window.removeEventListener('online', on);
+  }, []);
+
   return (
     <div className="fade-in">
+      <div className={`ptr${pull >= PULL_TRIGGER ? ' armed' : ''}`} style={{ '--pull': pull } as CSSProperties} aria-hidden="true"><Icon.refresh /></div>
       <header className="topbar">
         <div>
           <p className="topbar-sub">{todayLabel()}</p>
           <h1>{greeting()}</h1>
         </div>
         <button type="button" className={`icon-btn${spin ? ' spin' : ''}`} aria-label="새로고침" onAnimationEnd={() => setSpin(false)}
-          onClick={() => { setSpin(true); setRefresh((n) => n + 1); }}><Icon.refresh /></button>
+          onClick={reload}><Icon.refresh /></button>
       </header>
       <button type="button" className="search-pill" aria-label="종목 검색" onClick={() => setSearching(true)}>
         <Icon.search /><span>종목 검색</span><small>삼성, 애플, 비트…</small>
@@ -62,6 +78,16 @@ function Home({ onOpen }: { onOpen: (key: string) => void }) {
       <Trending key={`tr-${tab}-${refresh}`} market={tab} onOpen={onOpen} />
       <WatchList key={`wl-${tab}-${refresh}`} market={tab} onOpen={onOpen} />
       {searching && <SearchSheet onOpen={onOpen} onClose={() => setSearching(false)} />}
+    </div>
+  );
+}
+
+function NetworkBar() {
+  const net = useNetwork();
+  if (net === 'online') return null;
+  return (
+    <div className={`net-bar ${net}`} role="status">
+      {net === 'offline' ? '인터넷 연결이 끊겼어요 · 다시 연결되면 자동으로 새로 고쳐요' : '다시 연결됐어요'}
     </div>
   );
 }
@@ -79,7 +105,8 @@ function Shell() {
   const open = (key: string) => navigate('forward', () => setInstrument(key));
 
   function go(t: Tab) {
-    if (t === tab && !instrument) return;
+    // 지금 보고 있는 탭을 한 번 더 누르면 맨 위로
+    if (t === tab && !instrument) { window.scrollTo({ top: 0, behavior: motionOk() ? 'smooth' : 'auto' }); return; }
     navigate(instrument && t === 'home' ? 'back' : 'tab', () => {
       setInstrument(null);
       if (t === 'chat') setChatKey(null);
@@ -100,6 +127,7 @@ function Shell() {
 
   return (
     <div className="app">
+      <NetworkBar />
       {body}
       <Disclaimer />
       <nav className="bottom-nav" aria-label="메뉴" style={{ '--i': ['home', 'chat', 'settings'].indexOf(tab) } as CSSProperties}>

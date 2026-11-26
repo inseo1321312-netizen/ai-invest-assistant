@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import { changeClass } from '../format';
+import { changeClass, formatTimeKst } from '../format';
 import { marketStatus } from '../insights';
 import type { OverviewId, OverviewItem } from '../types';
 import { useTweened } from '../motion';
@@ -21,7 +21,8 @@ function Tile({ it: raw, now }: { it: OverviewItem; now: Date }) {
   const tweened = useTweened(raw.value ?? 0);
   const it = raw.value === null ? raw : { ...raw, value: tweened };
   const session = SESSION[it.id];
-  const open = session ? marketStatus(session, now).open : null;
+  // 서버(네이버)가 알면 그대로(공휴일 포함), 모르면 시계로 짐작
+  const open = session ? (typeof it.open === 'boolean' ? it.open : marketStatus(session, now).open) : null;
   const sub = it.changePct !== null ? signed(it.changePct) : it.note;
   const tone = it.id === 'kimchi' ? changeClass(it.value) : changeClass(it.changePct);
   return (
@@ -53,7 +54,7 @@ export function MarketOverview() {
 
   return (
     <section className="hero overview rise" aria-label="오늘 시장 한눈에">
-      <p className="hero-label">오늘 시장 한눈에</p>
+      <p className="hero-label">오늘 시장 한눈에{items && items.length > 0 && <span className="ov-asof">{formatTimeKst(Math.floor(now.getTime() / 1000)).slice(6)} 기준</span>}</p>
       {!items && <div className="ov-grid" aria-hidden="true">{Array.from({ length: 6 }, (_, i) => <span key={i} className="skeleton ov-sk" />)}</div>}
       {items && items.length === 0 && <p className="ov-empty">시장 정보를 불러오지 못했어요. 잠시 뒤 다시 열어 보세요.</p>}
       {items && items.length > 0 && <div className="ov-grid">{items.map((it) => <Tile key={it.id} it={it} now={now} />)}</div>}
