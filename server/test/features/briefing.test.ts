@@ -136,13 +136,13 @@ describe('push and scheduler', () => {
   });
 
 
-  test('scheduler registers the 08:00 briefing in Asia/Seoul', () => {
+  test('scheduler registers the 08:00 briefing and the alert checks in Asia/Seoul', () => {
     const jobs: { pattern: string; opts: Record<string, unknown> }[] = [];
     const s = startScheduler(
-      { briefing: async () => {} },
+      { briefing: async () => {}, alertPrices: async () => {}, alertEvents: async () => {} },
       (pattern, opts) => { jobs.push({ pattern, opts }); return { stop() {} }; },
     );
-    expect(jobs.map((j) => j.pattern)).toEqual(['0 8 * * *']);
+    expect(jobs.map((j) => j.pattern)).toEqual(['0 8 * * *', '* * * * *', '*/5 * * * *']);
     expect(jobs.every((j) => j.opts.timezone === 'Asia/Seoul' && j.opts.protect === true)).toBe(true);
     s.stop();
   });

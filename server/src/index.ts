@@ -12,6 +12,8 @@ import { createTrending } from './market/trending.js';
 import { createMarketOverview } from './market/overview.js';
 import { createNews } from './market/news.js';
 import { createInstrumentInfo } from './market/instrumentInfo.js';
+import { createAlertMonitor } from './features/alerts.js';
+import * as prompts from './ai/prompts.js';
 import { createOkxClient } from './market/okx.js';
 import { createKisClient } from './market/kis.js';
 import { createMarketService } from './market/service.js';
@@ -112,7 +114,20 @@ async function main() {
     instruments, trending, overview, news, instrumentInfo,
     webDist: path.resolve(import.meta.dirname, '../../web/dist'),
   });
-  startScheduler({ briefing: runBriefing });
+  const alerts = createAlertMonitor({
+    db, now, okx, upbit, news, instruments, push,
+    async explain(key, name, pct, window) {
+      let reason = '';
+      for await (const ev of router.runAi({
+        provider: 'claude', tier: 'light', purpose: 'scheduled', instructions: prompts.SPIKE, history: [],
+        userText: `${key} (${name})가 ${window} 동안 ${pct.toFixed(2)}% 움직였다.`, tools: [], webSearch: { maxUses: 2 },
+      })) {
+        if (ev.type === 'done') reason = ev.text;
+      }
+      return reason || null;
+    },
+  });
+  startScheduler({ briefing: runBriefing, alertPrices: alerts.tickPrices, alertEvents: alerts.tickEvents });
   await app.listen({ host: '0.0.0.0', port: config.port });
   console.log(`서버 시작: 포트 ${config.port}`);
   // 깨어나자마자 밀린 작업(오늘 브리핑, 급변 확인)을 뒤에서 한다

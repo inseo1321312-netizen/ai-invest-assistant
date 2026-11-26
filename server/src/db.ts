@@ -31,6 +31,8 @@ export const MIGRATIONS: string[] = [
   `ALTER TABLE analyses ADD COLUMN origin TEXT NOT NULL DEFAULT 'user';
    ALTER TABLE analyses ADD COLUMN tier TEXT NOT NULL DEFAULT 'standard';`,
   `CREATE TABLE recent_views (key TEXT PRIMARY KEY, market TEXT NOT NULL, viewed_at INTEGER NOT NULL, count INTEGER NOT NULL DEFAULT 1);`,
+  `CREATE TABLE alert_coins (key TEXT PRIMARY KEY, added_at INTEGER NOT NULL);
+   CREATE TABLE seen_events (id TEXT PRIMARY KEY, seen_at INTEGER NOT NULL);`,
 ];
 
 export function openDb(file: string): Db {

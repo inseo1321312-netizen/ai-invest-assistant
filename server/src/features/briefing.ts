@@ -14,7 +14,7 @@ import { CONFIDENCE, opinionChoices, type Confidence } from './tools.js';
 
 export interface BriefingDeps extends FeatureDeps { push: Push }
 
-export type FeedKind = 'briefing' | 'breaking' | 'spike' | 'liquidation';
+export type FeedKind = 'briefing' | 'breaking' | 'spike' | 'liquidation' | 'alert';
 export interface FeedItem { id: number; createdAt: number; day: string; kind: FeedKind; market: MarketId; key: string | null; title: string; body: string; isBreaking: boolean }
 
 const MARKET_NAME: Record<MarketId, string> = { coin: '코인', kr: '한국주식', us: '미국주식' };
