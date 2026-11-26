@@ -24,17 +24,7 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: OKX_API_KEY
-        sync: false
-      - key: OKX_API_SECRET
-        sync: false
-      - key: OKX_API_PASSPHRASE
-        sync: false
       - key: KIS_APP_KEY
         sync: false
       - key: KIS_APP_SECRET
         sync: false
-      - key: KIS_ACCOUNT_NO
-        sync: false
-      - key: KIS_ACCOUNT_PRODUCT
-        value: "01"

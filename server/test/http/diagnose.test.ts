@@ -26,6 +26,23 @@ test('diagnose reports each connection with Korean status', async () => {
   expect(res.json().checks.every((c: { label: string; detail: string }) => c.label.length > 0 && /[가-힣]/.test(c.detail))).toBe(true);
 });
 
+test('diagnose also checks Upbit, the stock lists and news', async () => {
+  const instruments = { search: async (q: string) => (q === 'AAPL' ? [{ key: 'us:NAS:AAPL', market: 'us' as const, name: '애플', symbol: 'AAPL' }] : []), nameOf: () => null, koreanCoinName: () => null, findKrCode: () => null, warm: async () => {} };
+  const { app, cookie } = await setup({
+    instruments,
+    upbit: { markets: async () => [{ market: 'KRW-BTC', koreanName: '비트코인', englishName: 'Bitcoin', warning: false, cautions: [] }], krwPrices: async () => new Map() },
+    news: { search: async () => { throw new Error('down'); } },
+  });
+  const checks = (await app.inject({ method: 'GET', url: '/api/admin/diagnose', headers: { cookie } })).json().checks as { id: string; state: string; detail: string }[];
+  expect(checks.map((c) => c.id)).toEqual(['okx', 'upbit', 'kis', 'catalog', 'news', 'claude', 'chatgpt', 'storage']);
+  const by = Object.fromEntries(checks.map((c) => [c.id, c]));
+  expect(by.upbit).toMatchObject({ state: 'ok' });
+  expect(by.catalog).toMatchObject({ state: 'warn' });
+  expect(by.catalog!.detail).toContain('한국');
+  expect(by.news).toMatchObject({ state: 'warn' });
+  expect(by.chatgpt!.detail).toContain('설정');
+});
+
 test('OKX market failure explains the likely region block', async () => {
   const { app, cookie } = await setup({}, fakeOkx({ async getQuote() { throw new Error('403'); } }));
   const checks = (await app.inject({ method: 'GET', url: '/api/admin/diagnose', headers: { cookie } })).json().checks;

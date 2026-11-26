@@ -1,0 +1,15 @@
+# Render 무료 서버는 15분 동안 요청이 없으면 잠든다. 알림 코인을 제때 확인하려고 10분마다 깨운다.
+# 새벽 2시~6시(한국 시간)에는 깨우지 않는다: UTC 17~20시를 뺀 시간대.
+name: keep-awake
+on:
+  schedule:
+    - cron: '*/10 0-16,21-23 * * *'
+  workflow_dispatch:
+permissions: {}
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping the app
+        run: curl -fsS -m 90 --retry 2 --retry-delay 20 https://ai-invest-assistant.onrender.com/api/health

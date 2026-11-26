@@ -3,6 +3,9 @@ import type { SiwcTokenStore } from '../ai/siwcTokens.js';
 import type { MarketService } from '../market/service.js';
 import { parseInstrumentKey } from '../market/types.js';
 import type { Persistence } from '../persist.js';
+import type { InstrumentCatalog } from '../market/catalog.js';
+import type { News } from '../market/news.js';
+import type { UpbitClient } from '../market/upbit.js';
 
 type State = 'ok' | 'warn' | 'fail' | 'off';
 interface Check { id: string; label: string; state: State; detail: string }
@@ -20,6 +23,9 @@ export function registerDiagnoseRoutes(app: FastifyInstance, deps: {
   siwc: SiwcTokenStore;
   persistence?: Persistence | null;
   checkClaude?: (() => Promise<void>) | null;
+  instruments?: InstrumentCatalog | null;
+  upbit?: Pick<UpbitClient, 'markets'> | null;
+  news?: Pick<News, 'search'> | null;
 }) {
   app.get('/api/admin/diagnose', async () => {
     const checks: Check[] = await Promise.all([
@@ -32,12 +38,45 @@ export function registerDiagnoseRoutes(app: FastifyInstance, deps: {
         }
       })(),
       (async (): Promise<Check> => {
+        if (!deps.upbit) return { id: 'upbit', label: '업비트', state: 'off', detail: '업비트 연결이 꺼져 있어요' };
+        try {
+          const m = await withTimeout(deps.upbit.markets());
+          return { id: 'upbit', label: '업비트', state: m.length ? 'ok' : 'warn', detail: m.length ? `코인 한글 이름 ${m.length}개를 불러왔어요` : '업비트 목록이 비어 있어요' };
+        } catch {
+          return { id: 'upbit', label: '업비트', state: 'fail', detail: '연결 실패. 서버 지역에서 막혔을 수 있어요(김치 프리미엄·코인 한글 이름에 영향)' };
+        }
+      })(),
+      (async (): Promise<Check> => {
         if (!deps.connected.kis) return { id: 'kis', label: '한국투자증권', state: 'off', detail: '한국투자증권 앱키가 없어요(주식 시세·순위 꺼짐)' };
         try {
           const q = await withTimeout(deps.market.getQuote(parseInstrumentKey('kr:005930')));
           return { id: 'kis', label: '한국투자증권', state: q.price > 0 ? 'ok' : 'warn', detail: q.price > 0 ? `삼성전자 ${Math.round(q.price).toLocaleString('ko-KR')}원` : '연결은 됐지만 가격이 0으로 와요(응답 형식 확인 필요)' };
         } catch {
           return { id: 'kis', label: '한국투자증권', state: 'fail', detail: '앱키·앱시크릿을 확인하세요' };
+        }
+      })(),
+      (async (): Promise<Check> => {
+        if (!deps.instruments) return { id: 'catalog', label: '종목 검색', state: 'off', detail: '종목 목록이 없어요' };
+        try {
+          const [kr, us] = await withTimeout(Promise.all([deps.instruments.search('삼성전자'), deps.instruments.search('AAPL')]));
+          const hasKr = kr.some((h) => h.key === 'kr:005930');
+          const hasUs = us.some((h) => h.key.endsWith(':AAPL'));
+          if (hasKr && hasUs) return { id: 'catalog', label: '종목 검색', state: 'ok', detail: '삼성전자와 애플을 이름으로 찾을 수 있어요' };
+          const missing = [!hasKr && '한국', !hasUs && '미국'].filter(Boolean).join('·');
+          return { id: 'catalog', label: '종목 검색', state: 'warn', detail: `${missing} 종목 목록을 받지 못했어요(코인 검색은 돼요). 잠시 뒤 다시 점검해 보세요` };
+        } catch {
+          return { id: 'catalog', label: '종목 검색', state: 'fail', detail: '종목 목록을 불러오지 못했어요' };
+        }
+      })(),
+      (async (): Promise<Check> => {
+        if (!deps.news) return { id: 'news', label: '뉴스', state: 'off', detail: '뉴스 연결이 꺼져 있어요' };
+        try {
+          const items = await withTimeout(deps.news.search('비트코인'));
+          return items.length
+            ? { id: 'news', label: '뉴스', state: 'ok', detail: `기사 ${items.length}개를 가져왔어요` }
+            : { id: 'news', label: '뉴스', state: 'warn', detail: '뉴스를 가져오지 못했어요. 잠시 뒤 다시 점검해 보세요' };
+        } catch {
+          return { id: 'news', label: '뉴스', state: 'warn', detail: '뉴스를 가져오지 못했어요. 잠시 뒤 다시 점검해 보세요' };
         }
       })(),
       (async (): Promise<Check> => {
@@ -50,7 +89,7 @@ export function registerDiagnoseRoutes(app: FastifyInstance, deps: {
         }
       })(),
       (async (): Promise<Check> => {
-        if (!deps.siwc.has()) return { id: 'chatgpt', label: 'ChatGPT Plus', state: 'off', detail: '아직 연결 안 됨. PC에서 로그인 명령을 한 번 실행하세요' };
+        if (!deps.siwc.has()) return { id: 'chatgpt', label: 'ChatGPT Plus', state: 'off', detail: '아직 연결 안 됨. 설정 → ChatGPT 연결을 누르세요' };
         try {
           await withTimeout(deps.siwc.getAccessToken());
           return { id: 'chatgpt', label: 'ChatGPT Plus', state: 'ok', detail: '연결됨' };

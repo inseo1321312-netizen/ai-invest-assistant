@@ -24,6 +24,7 @@ import type { InstrumentCatalog } from './market/catalog.js';
 import type { MarketOverview } from './market/overview.js';
 import type { News } from './market/news.js';
 import type { InstrumentInfo } from './market/instrumentInfo.js';
+import type { UpbitClient } from './market/upbit.js';
 import type { Trending } from './market/trending.js';
 import type { Persistence } from './persist.js';
 
@@ -55,6 +56,8 @@ export interface AppDeps {
   news?: News | null;
   /** 종목 기본 지표·선물 지표·김프 */
   instrumentInfo?: InstrumentInfo | null;
+  /** 업비트(연결 점검용) */
+  upbit?: Pick<UpbitClient, 'markets' | 'krwPrices'> | null;
   /** 코인 공포·탐욕 지수 */
   sentiment?: (() => Promise<Sentiment | null>) | null;
 }

@@ -111,7 +111,7 @@ async function main() {
     config, db, now, market, connected: { kis: config.kis !== null }, siwc, runAi: router.runAi,
     push, runBriefing, catchUp, settings: { router, budget }, catalog, persistence, checkClaude,
     sentiment,
-    instruments, trending, overview, news, instrumentInfo,
+    instruments, trending, overview, news, instrumentInfo, upbit,
     webDist: path.resolve(import.meta.dirname, '../../web/dist'),
   });
   const alerts = createAlertMonitor({
