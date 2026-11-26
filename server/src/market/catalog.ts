@@ -19,6 +19,7 @@ export interface InstrumentCatalog {
 interface Entry { hit: SearchHit; aliases: string[]; weight: number }
 
 const REFRESH_MS = 24 * 3600_000;
+const RETRY_MS = 5 * 60_000;
 const norm = (s: string) => s.replace(/\s+/g, '').toUpperCase();
 
 export function createInstrumentCatalog(deps: {
@@ -32,8 +33,11 @@ export function createInstrumentCatalog(deps: {
   const names = new Map<string, string>();
   const coinKo = new Map<string, string>();
   const krByName = new Map<string, string>();
-  let loadedAt = 0;
-  let loading: Promise<void> | null = null;
+  /** 부분별 상태: 실패하면 RETRY_MS 뒤 다시, 성공하면 하루 뒤 새로 */
+  const parts = {
+    stocks: { at: 0, ok: false, loading: null as Promise<void> | null },
+    coins: { at: 0, ok: false, loading: null as Promise<void> | null },
+  };
 
   async function loadStocks() {
     const m = await deps.loadMasters();
@@ -43,16 +47,16 @@ export function createInstrumentCatalog(deps: {
       const name = r.koName || r.enName || r.symbol;
       next.push({ hit: { key: `us:${r.exchange}:${r.symbol}`, market: 'us', name, symbol: r.symbol }, aliases: [norm(r.koName), norm(r.enName), r.symbol].filter(Boolean), weight: 0 });
     }
-    if (next.length) {
-      stocks = next;
-      for (const e of next) names.set(e.hit.key, e.hit.name);
-      krByName.clear();
-      for (const r of m.kr) if (!krByName.has(r.name)) krByName.set(r.name, r.code);
-    }
+    if (next.length === 0) throw new Error('종목 목록이 비어 있습니다');
+    stocks = next;
+    for (const e of next) names.set(e.hit.key, e.hit.name);
+    krByName.clear();
+    for (const r of m.kr) if (!krByName.has(r.name)) krByName.set(r.name, r.code);
   }
 
   async function loadCoins() {
-    const [tickers, markets] = await Promise.all([deps.okx.getTickers('SPOT'), deps.upbit.markets().catch(() => [] as UpbitMarket[])]);
+    // 업비트 한글명은 OKX가 실패해도 먼저 채운다(알림 제목·뉴스 검색어에 쓰인다)
+    const markets = await deps.upbit.markets().catch(() => [] as UpbitMarket[]);
     const en = new Map<string, string>();
     for (const m of markets) {
       const base = m.market.split('-')[1];
@@ -60,6 +64,7 @@ export function createInstrumentCatalog(deps: {
       if (!coinKo.has(base)) coinKo.set(base, m.koreanName);
       if (!en.has(base)) en.set(base, m.englishName);
     }
+    const tickers = await deps.okx.getTickers('SPOT');
     const next: Entry[] = [];
     for (const t of tickers) {
       const m = /^([A-Z0-9]+)-USDT$/.exec(t.instId);
@@ -72,20 +77,28 @@ export function createInstrumentCatalog(deps: {
         weight: t.volCcy24h,
       });
     }
-    if (next.length) coins = next;
+    if (next.length === 0) throw new Error('코인 목록이 비어 있습니다');
+    coins = next;
   }
 
-  function load(): Promise<void> {
-    loading ??= Promise.all([
-      loadStocks().catch((err) => console.error('주식 종목 목록 실패', err instanceof Error ? err.message : err)),
-      loadCoins().catch((err) => console.error('코인 목록 실패', err instanceof Error ? err.message : err)),
-    ]).then(() => { loadedAt = deps.now(); }).finally(() => { loading = null; });
-    return loading;
+  function run(name: 'stocks' | 'coins', fn: () => Promise<void>): Promise<void> {
+    const p = parts[name];
+    p.loading ??= fn()
+      .then(() => { p.ok = true; })
+      .catch((err) => { p.ok = false; console.error(`종목 목록 실패(${name})`, err instanceof Error ? err.message : err); })
+      .finally(() => { p.at = deps.now(); p.loading = null; });
+    return p.loading;
   }
 
   async function ensure() {
-    if (loadedAt === 0) await load();
-    else if (deps.now() - loadedAt > REFRESH_MS) void load();
+    const now = deps.now();
+    const waits: Promise<void>[] = [];
+    for (const [name, fn] of [['stocks', loadStocks], ['coins', loadCoins]] as const) {
+      const p = parts[name];
+      if (p.at === 0 || (!p.ok && now - p.at >= RETRY_MS)) waits.push(run(name, fn));
+      else if (p.ok && now - p.at > REFRESH_MS) void run(name, fn);
+    }
+    await Promise.all(waits);
   }
 
   return {

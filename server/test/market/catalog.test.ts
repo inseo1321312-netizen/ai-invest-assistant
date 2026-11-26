@@ -100,3 +100,30 @@ test('findKrCode looks up a Korean stock by exact name', async () => {
   expect(c.findKrCode('삼성전자')).toBe('005930');
   expect(c.findKrCode('없는회사')).toBeNull();
 });
+
+test('a failed list load is retried after a few minutes instead of a whole day', async () => {
+  const clock = makeClock();
+  let mastersOk = false;
+  let tickersOk = false;
+  const c = createInstrumentCatalog({
+    now: clock.now,
+    loadMasters: async () => (mastersOk ? masters() : { kr: [], us: [] }),
+    okx: { getTickers: async () => { if (!tickersOk) throw new Error('down'); return tickers(); } },
+    upbit,
+  });
+  expect(await c.search('삼성')).toEqual([]);
+  expect(await c.search('비트')).toEqual([]);
+  mastersOk = true;
+  tickersOk = true;
+  clock.advance(60_000);
+  expect(await c.search('삼성')).toEqual([]); // 바로 다시 받지는 않는다
+  clock.advance(5 * 60_000);
+  expect((await c.search('삼성'))[0]!.key).toBe('kr:005930');
+  expect((await c.search('비트'))[0]!.key).toBe('coin:BTC-USDT');
+});
+
+test('Korean coin names arrive even when OKX tickers fail', async () => {
+  const c = createInstrumentCatalog({ now: makeClock().now, loadMasters: masters, okx: { getTickers: async () => { throw new Error('down'); } }, upbit });
+  await c.warm();
+  expect(c.koreanCoinName('BTC')).toBe('비트코인');
+});

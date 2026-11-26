@@ -17,6 +17,7 @@ export function registerInfoRoutes(app: FastifyInstance, deps: {
   overview?: MarketOverview | null;
   news?: News | null;
   instrumentInfo?: InstrumentInfo | null;
+  connected?: { kis: boolean };
 }) {
   app.get('/api/search', async (req, reply) => {
     const p = z.object({ q: z.string().max(40).default('') }).safeParse(req.query);
@@ -29,8 +30,9 @@ export function registerInfoRoutes(app: FastifyInstance, deps: {
     const market = (req.params as { market: string }).market as MarketId;
     const p = z.object({ kind: z.enum(['gainers', 'value']).default('gainers') }).safeParse(req.query);
     if (!MARKETS.includes(market) || !p.success) return reply.code(400).send({ error: '잘못된 요청입니다' });
-    if (!deps.trending) return { items: [] };
-    return { items: await deps.trending.get(market, p.data.kind).catch(() => []) };
+    const needsKey = market !== 'coin' && !deps.connected?.kis;
+    if (!deps.trending) return { items: [], needsKey };
+    return { items: await deps.trending.get(market, p.data.kind).catch(() => []), needsKey };
   });
 
   app.get('/api/news', async (req, reply) => {

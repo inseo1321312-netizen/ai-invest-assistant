@@ -28,7 +28,7 @@ test('trending and market overview routes', async () => {
   const app = await buildApp(deps);
   const cookie = await loginCookie(app);
   expect((await app.inject({ method: 'GET', url: '/api/trending/coin?kind=gainers', headers: { cookie } })).json().items).toHaveLength(1);
-  expect((await app.inject({ method: 'GET', url: '/api/trending/kr', headers: { cookie } })).json()).toEqual({ items: [] });
+  expect((await app.inject({ method: 'GET', url: '/api/trending/kr', headers: { cookie } })).json()).toEqual({ items: [], needsKey: true });
   expect((await app.inject({ method: 'GET', url: '/api/trending/coin?kind=wrong', headers: { cookie } })).statusCode).toBe(400);
   expect((await app.inject({ method: 'GET', url: '/api/trending/zz', headers: { cookie } })).statusCode).toBe(400);
   expect((await app.inject({ method: 'GET', url: '/api/market-overview', headers: { cookie } })).json().items[0].label).toBe('코스피');
@@ -49,4 +49,15 @@ test('news and instrument info routes', async () => {
   expect((await app.inject({ method: 'GET', url: '/api/news?key=bad', headers: { cookie } })).statusCode).toBe(400);
   expect((await app.inject({ method: 'GET', url: '/api/instrument/info?key=kr:005930', headers: { cookie } })).json()).toEqual({ stock: null, coin: null });
   expect((await app.inject({ method: 'GET', url: '/api/instrument/info?key=bad', headers: { cookie } })).statusCode).toBe(400);
+});
+
+test('trending says when stock rankings need the KIS key', async () => {
+  const trending = { get: async () => [] };
+  const noKey = await buildApp(testDeps({ trending, connected: { kis: false } }));
+  const c1 = await loginCookie(noKey);
+  expect((await noKey.inject({ method: 'GET', url: '/api/trending/kr', headers: { cookie: c1 } })).json()).toEqual({ items: [], needsKey: true });
+  expect((await noKey.inject({ method: 'GET', url: '/api/trending/coin', headers: { cookie: c1 } })).json()).toEqual({ items: [], needsKey: false });
+  const withKey = await buildApp(testDeps({ trending, connected: { kis: true } }));
+  const c2 = await loginCookie(withKey);
+  expect((await withKey.inject({ method: 'GET', url: '/api/trending/kr', headers: { cookie: c2 } })).json()).toEqual({ items: [], needsKey: false });
 });

@@ -11,7 +11,10 @@ function decode(s: string): string {
   return s
     .replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, '$1')
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
+    .replace(/&#(x[0-9a-f]+|\d+);/gi, (_, n: string) => {
+      const cp = n[0] === 'x' || n[0] === 'X' ? parseInt(n.slice(1), 16) : Number(n);
+      return Number.isInteger(cp) && cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : '';
+    })
     .replace(/&amp;/g, '&')
     .trim();
 }

@@ -49,6 +49,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: { siwc: SiwcToke
     } catch {
       return fail('주소를 확인해 주세요. 사파리 주소창의 주소 전체를 복사해야 해요');
     }
+    if (url.hostname !== '127.0.0.1') return fail('주소를 확인해 주세요. "127.0.0.1"로 시작하는 주소를 복사해야 해요');
     const q = url.searchParams;
     if (!pending) return fail('로그인을 처음부터 다시 해 주세요');
     if (now() - pending.createdAt > PENDING_MS) {

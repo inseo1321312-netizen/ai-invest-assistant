@@ -51,3 +51,8 @@ test('query words per market', () => {
   expect(newsQueryFor(parseInstrumentKey('coin:BTC-USDT-SWAP'), '비트코인')).toBe('비트코인');
   expect(newsQueryFor(parseInstrumentKey('coin:PEPE-USDT'), null)).toBe('PEPE 코인');
 });
+
+test('broken or hex character codes do not break the feed', () => {
+  const xml = '<rss><channel><item><title>A&#99999999;B &#x41;&#66; - 한경</title><link>https://n.example/1</link><pubDate>Thu, 26 Nov 2026 03:00:00 GMT</pubDate><source url="https://h">한경</source></item></channel></rss>';
+  expect(parseRss(xml).map((i) => i.title)).toEqual(['AB AB']);
+});

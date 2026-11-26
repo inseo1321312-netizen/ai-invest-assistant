@@ -96,3 +96,15 @@ test('phone sign-in refuses wrong, cancelled, incomplete or stale addresses', as
   expect(calls).toHaveLength(0);
   expect((await app.inject({ method: 'GET', url: '/api/admin/siwc-status', headers: { cookie } })).json().connected).toBe(false);
 });
+
+test('phone sign-in only accepts the 127.0.0.1 callback address', async () => {
+  const calls: ExchangeArgs[] = [];
+  const app = await buildApp(testDeps({ siwcExchange: fakeExchange(calls) }));
+  const cookie = await loginCookie(app);
+  const start = (await app.inject({ method: 'POST', url: '/api/admin/siwc-login/start', headers: { cookie } })).json();
+  const state = new URL(start.url).searchParams.get('state');
+  const res = await app.inject({ method: 'POST', url: '/api/admin/siwc-login/finish', headers: { cookie }, payload: { url: `https://evil.example/auth/callback?code=X&state=${state}&client_id=c` } });
+  expect(res.statusCode).toBe(400);
+  expect(res.json().error).toContain('주소');
+  expect(calls).toHaveLength(0);
+});

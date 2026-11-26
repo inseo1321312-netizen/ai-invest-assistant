@@ -5,7 +5,7 @@ const CENTRAL = 0x02014b50;
 const LOCAL = 0x04034b50;
 
 /** zip 파일의 첫 항목을 풀어서 돌려준다(KIS 종목 목록 zip은 항목이 하나다). 저장(0)·deflate(8)만 지원. */
-export function unzipFirst(buf: Buffer): Buffer {
+export function unzipFirst(buf: Buffer, maxBytes = 64 * 1024 * 1024): Buffer {
   let eocd = -1;
   for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 65535); i--) {
     if (buf.readUInt32LE(i) === EOCD) { eocd = i; break; }
@@ -19,7 +19,10 @@ export function unzipFirst(buf: Buffer): Buffer {
   if (buf.readUInt32LE(localOffset) !== LOCAL) throw new Error('zip 항목이 올바르지 않습니다');
   const start = localOffset + 30 + buf.readUInt16LE(localOffset + 26) + buf.readUInt16LE(localOffset + 28);
   const data = buf.subarray(start, start + compSize);
-  if (method === 0) return Buffer.from(data);
-  if (method === 8) return inflateRawSync(data);
+  if (method === 0) {
+    if (data.length > maxBytes) throw new Error('zip 항목이 너무 큽니다');
+    return Buffer.from(data);
+  }
+  if (method === 8) return inflateRawSync(data, { maxOutputLength: maxBytes });
   throw new Error(`지원하지 않는 zip 압축 방식: ${method}`);
 }

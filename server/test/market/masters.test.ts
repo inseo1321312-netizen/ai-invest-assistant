@@ -46,3 +46,9 @@ describe('KIS master files', () => {
     expect(f.calls.map((c) => c.url.host)).toContain('new.real.download.dws.co.kr');
   });
 });
+
+test('unzip refuses output larger than the limit', () => {
+  expect(() => unzipFirst(makeZip('big.mst', Buffer.alloc(5000, 65), 8), 1000)).toThrow();
+  expect(() => unzipFirst(makeZip('big.mst', Buffer.alloc(5000, 65), 0), 1000)).toThrow();
+  expect(unzipFirst(makeZip('ok.mst', Buffer.alloc(500, 65), 8), 1000).length).toBe(500);
+});
