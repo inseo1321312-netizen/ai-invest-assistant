@@ -19,10 +19,15 @@ export interface FeedItem { id: number; createdAt: number; day: string; kind: Fe
 
 const MARKET_NAME: Record<MarketId, string> = { coin: '코인', kr: '한국주식', us: '미국주식' };
 
-export function addFeedItem(db: Db, now: () => number, item: Omit<FeedItem, 'id' | 'createdAt' | 'day'>): void {
+export function addFeedItem(db: Db, now: () => number, item: Omit<FeedItem, 'id' | 'createdAt' | 'day'>): number {
   const t = now();
-  db.sql.prepare('INSERT INTO feed_items (created_at, day, kind, market, key, title, body, is_breaking) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+  const res = db.sql.prepare('INSERT INTO feed_items (created_at, day, kind, market, key, title, body, is_breaking) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
     .run(t, kstDay(t), item.kind, item.market, item.key, item.title, item.body, item.isBreaking ? 1 : 0);
+  return Number(res.lastInsertRowid);
+}
+
+export function updateFeedBody(db: Db, id: number, body: string): void {
+  db.sql.prepare('UPDATE feed_items SET body = ? WHERE id = ?').run(body, id);
 }
 
 export function listFeed(db: Db, day: string): FeedItem[] {
