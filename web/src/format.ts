@@ -59,6 +59,13 @@ export function parseUserSymbol(market: MarketId, input: string): string | null 
   return m ? `us:${m[1] ?? 'NAS'}:${m[2]}` : null;
 }
 
+/** 종목 키 → 아이콘에 쓸 정보 */
+export function parseKey(key: string, name: string | null = null): { market: MarketId; symbol: string; name: string | null; exchange: string | null } {
+  const [market, a, b] = key.split(':');
+  if (market === 'us') return { market: 'us', symbol: b ?? '', name, exchange: a ?? null };
+  return { market: (market as MarketId) ?? 'coin', symbol: a ?? '', name, exchange: null };
+}
+
 export function changeClass(n: number | null | undefined): string {
   if (n === null || n === undefined || Math.abs(n) < 0.05) return 'flat';
   return n > 0 ? 'up' : 'down';

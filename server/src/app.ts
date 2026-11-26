@@ -25,6 +25,7 @@ import type { MarketOverview } from './market/overview.js';
 import type { News } from './market/news.js';
 import type { InstrumentInfo } from './market/instrumentInfo.js';
 import type { UpbitClient } from './market/upbit.js';
+import type { Logos } from './market/logos.js';
 import type { KisClient } from './market/kis.js';
 import type { Trending } from './market/trending.js';
 import type { Persistence } from './persist.js';
@@ -65,6 +66,8 @@ export interface AppDeps {
   naver?: Pick<KisClient, 'getQuote'> | null;
   /** 한투 클라이언트 자체(연결 점검용) */
   kis?: Pick<KisClient, 'getQuote'> | null;
+  /** 종목 로고 */
+  logos?: Logos | null;
   /** 업비트(연결 점검용) */
   upbit?: Pick<UpbitClient, 'markets' | 'krwPrices'> | null;
   /** 코인 공포·탐욕 지수 */

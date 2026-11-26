@@ -40,7 +40,7 @@ export function Trending({ market, onOpen }: { market: MarketId; onOpen: (key: s
           {items.map((t, i) => (
             <button key={t.key} type="button" className="trend-card" onClick={() => onOpen(t.key)}>
               <span className="trend-rank num">{i + 1}</span>
-              <Avatar inst={{ market, symbol: t.symbol, name: t.name }} />
+              <Avatar inst={{ market, symbol: t.symbol, name: t.name }} logoKey={t.key} />
               <span className="trend-name">{t.name}</span>
               <span className="trend-price num">{formatPrice(t.price, t.currency)}</span>
               <span className={`change num ${changeClass(t.changePct)}`}>{formatPct(t.changePct)}</span>

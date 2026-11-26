@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { InstrumentCatalog } from '../market/catalog.js';
 import type { InstrumentInfo } from '../market/instrumentInfo.js';
+import type { Logos } from '../market/logos.js';
 import type { News } from '../market/news.js';
 import { newsQueryFor } from '../market/news.js';
 import type { MarketOverview } from '../market/overview.js';
@@ -20,6 +21,7 @@ export function registerInfoRoutes(app: FastifyInstance, deps: {
   connected?: { kis: boolean };
   /** 앱키 없이도 주식 시세가 되는지(네이버 증권) */
   stocksAvailable?: boolean;
+  logos?: Logos | null;
 }) {
   app.get('/api/search', async (req, reply) => {
     const p = z.object({ q: z.string().max(40).default('') }).safeParse(req.query);
@@ -51,6 +53,15 @@ export function registerInfoRoutes(app: FastifyInstance, deps: {
     if (!p.success) return reply.code(400).send({ error: '잘못된 요청입니다' });
     if (!deps.instrumentInfo) return { stock: null, coin: null };
     return deps.instrumentInfo.get(p.data.key);
+  });
+
+  // 종목 로고(서버가 받아 둔 그림). 없으면 404 → 앱이 글자 아이콘을 보여준다
+  app.get('/api/logo', async (req, reply) => {
+    const p = z.object({ key: keySchema }).safeParse(req.query);
+    if (!p.success || !deps.logos) return reply.code(404).send({ error: '로고가 없어요' });
+    const logo = await deps.logos.get(p.data.key);
+    if (!logo) return reply.code(404).send({ error: '로고가 없어요' });
+    return reply.header('content-type', logo.type).header('cache-control', 'private, max-age=604800').send(logo.body);
   });
 
   app.get('/api/market-overview', async () => ({ items: deps.overview ? await deps.overview.get() : [] }));

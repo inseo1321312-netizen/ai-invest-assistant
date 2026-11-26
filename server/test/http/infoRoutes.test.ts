@@ -67,3 +67,16 @@ test('with Naver stock prices, stock rankings never ask for the KIS key', async 
   const cookie = await loginCookie(app);
   expect((await app.inject({ method: 'GET', url: '/api/trending/kr', headers: { cookie } })).json()).toEqual({ items: [], needsKey: false });
 });
+
+test('logo route sends the image with caching, or 404', async () => {
+  const deps = testDeps({ logos: { get: async (key: string) => (key === 'kr:005930' ? { type: 'image/png', body: Buffer.from([1, 2, 3]) } : null) } });
+  const app = await buildApp(deps);
+  const cookie = await loginCookie(app);
+  const ok = await app.inject({ method: 'GET', url: '/api/logo?key=kr:005930', headers: { cookie } });
+  expect(ok.statusCode).toBe(200);
+  expect(ok.headers['content-type']).toBe('image/png');
+  expect(String(ok.headers['cache-control'])).toContain('max-age');
+  expect(ok.rawPayload.length).toBe(3);
+  expect((await app.inject({ method: 'GET', url: '/api/logo?key=kr:000000', headers: { cookie } })).statusCode).toBe(404);
+  expect((await app.inject({ method: 'GET', url: '/api/logo?key=kr:005930' })).statusCode).toBe(401);
+});

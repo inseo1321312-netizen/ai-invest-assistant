@@ -9,6 +9,8 @@ import type { Bar, Candle, Instrument, Quote, UsExchange } from './types.js';
 import { BAR_SECONDS } from './types.js';
 
 export type StockSource = Pick<KisClient, 'getQuote' | 'getCandles' | 'getRanking' | 'getIndex' | 'getUsIndex' | 'getBasicInfo'>;
+/** 네이버 클라이언트: 시세 출처 + 미국 기호의 네이버 코드(로고 주소에 쓴다) */
+export type NaverClient = StockSource & { usCode(inst: Instrument): Promise<string> };
 
 const UA = { 'user-agent': 'Mozilla/5.0', accept: 'application/json' };
 const RANK_LIMIT = 20;
@@ -46,7 +48,7 @@ function kstUnix(ymdStr: string, hms = '000000'): number {
   return Math.floor(Date.parse(`${ymdStr.slice(0, 4)}-${ymdStr.slice(4, 6)}-${ymdStr.slice(6, 8)}T${hms.slice(0, 2)}:${hms.slice(2, 4)}:${hms.slice(4, 6)}+09:00`) / 1000);
 }
 
-export function createNaverClient(deps: { fetch: typeof fetch; now?: () => number }): StockSource {
+export function createNaverClient(deps: { fetch: typeof fetch; now?: () => number }): NaverClient {
   const now = deps.now ?? Date.now;
   /** 미국 기호 → 네이버 코드(AAPL → AAPL.O, KO → KO, DELL → DELL.K) */
   const reuters = new Map<string, string>();
@@ -171,6 +173,8 @@ export function createNaverClient(deps: { fetch: typeof fetch; now?: () => numbe
   }
 
   return {
+    usCode,
+
     async getQuote(inst) {
       if (inst.market === 'kr') {
         const d = await realtime(`domestic/stock/${inst.symbol}`);

@@ -8,6 +8,8 @@ import { Dots, Icon, Segmented, Sheet, useFlash, useToast } from '../ui';
 import { useTweened } from '../motion';
 import { InstrumentInfo } from './InstrumentInfo';
 import { NewsList, NewsStrip } from './NewsStrip';
+import { Avatar } from './rows';
+import { parseKey } from '../format';
 import { AnalysisPanel, emptyRun, PROVIDER_LABEL, type RunState } from './AnalysisPanel';
 import { CandleChart, DEFAULT_INDICATORS, type Indicators } from './CandleChart';
 
@@ -205,7 +207,10 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
     <div className="screen" role="region" aria-label={`${keyId} 상세`}>
       <header className="topbar">
         <button type="button" className="icon-btn" aria-label="뒤로" onClick={onClose}><Icon.back /></button>
-        <h1 className="title-sm">{name ?? title}{name && <small>{title}</small>}</h1>
+        <div className="title-wrap">
+          <Avatar inst={parseKey(keyId, name)} logoKey={keyId} />
+          <h1 className="title-sm">{name ?? title}{name && <small>{title}</small>}</h1>
+        </div>
         <div className="head-actions">
           <button type="button" className={`icon-btn toggle-icon${fav ? ' on star' : ''}`} aria-label="즐겨찾기" aria-pressed={fav} onClick={toggleFav}><Icon.star /></button>
           {isCoin && <button type="button" className={`icon-btn toggle-icon${bell ? ' on' : ''}`} aria-label="알림 코인" aria-pressed={bell} onClick={toggleBell}><Icon.bell /></button>}

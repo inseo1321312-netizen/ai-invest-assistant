@@ -7,6 +7,7 @@ import { buildApp } from './app.js';
 import { createSentiment } from './market/sentiment.js';
 import { createInstrumentCatalog } from './market/catalog.js';
 import { createNaverClient, withFallback, type StockSource } from './market/naver.js';
+import { createLogos } from './market/logos.js';
 import { downloadMasters } from './market/masters.js';
 import { createUpbitClient } from './market/upbit.js';
 import { createTrending } from './market/trending.js';
@@ -75,6 +76,7 @@ async function main() {
   /** 주식 출처: 한투 앱키가 있으면 한투를 먼저 쓰고 실패하면 네이버, 없으면 네이버 */
   const stocks: StockSource = config.kis ? withFallback<StockSource>(kis, naver, [...STOCK_METHODS]) : naver;
   const market = createMarketService({ okx, kis: stocks, db, now, fx: () => getUsdKrw({ db, now }) });
+  const logos = createLogos({ fetch, usCode: (inst) => naver.usCode(inst), now });
   const upbit = createUpbitClient({ fetch });
   const instruments = createInstrumentCatalog({ now, loadMasters: () => downloadMasters(fetch), okx, upbit });
   const sentiment = createSentiment({ fetch, now });
@@ -116,7 +118,7 @@ async function main() {
     push, runBriefing, catchUp, settings: { router, budget }, catalog, persistence, checkClaude,
     sentiment,
     instruments, trending, overview, news, instrumentInfo, upbit,
-    stocksAvailable: true, naver, kis: config.kis ? kis : null,
+    stocksAvailable: true, naver, kis: config.kis ? kis : null, logos,
     webDist: path.resolve(import.meta.dirname, '../../web/dist'),
   });
   const alerts = createAlertMonitor({

@@ -367,6 +367,17 @@ a.btn { text-decoration: none; color: var(--ink); }
 .set-row + .set-row { border-top: 1px solid var(--line); }
 .set-row:active { background: var(--surface-2); }
 
+/* ── 로고 ────────────────────────────────────────────── */
+.avatar { position: relative; overflow: hidden; }
+.avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 260ms var(--ease); }
+.avatar.coin img { object-fit: contain; padding: 3px; }
+.avatar.has-logo { background: #fff; box-shadow: inset 0 0 0 1px var(--line); }
+.avatar.has-logo img { opacity: 1; }
+.avatar.has-logo .avatar-text { visibility: hidden; }
+.title-wrap { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.title-wrap .avatar { grid-row: auto; flex: none; width: 30px; height: 30px; border-radius: 10px; font-size: 10px; }
+.title-wrap .title-sm { flex: 0 1 auto; text-align: left; }
+
 /* 예전 요약 칩(다른 화면에서 씀) */
 .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 13px; font-weight: 600; }
 .chip.up { background: var(--up-soft); color: var(--up); }

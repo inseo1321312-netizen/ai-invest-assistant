@@ -51,7 +51,7 @@ export function SearchSheet({ onOpen, onClose }: { onOpen: (key: string) => void
           {hits.map((h) => (
             <li key={h.key}>
               <button type="button" className="search-row" aria-label={`${h.name} ${h.symbol} ${MARKET_SHORT[h.market]}`} onClick={() => { onOpen(h.key); onClose(); }}>
-                <Avatar inst={{ market: h.market, symbol: h.symbol, name: h.name }} />
+                <Avatar inst={{ market: h.market, symbol: h.symbol, name: h.name }} logoKey={h.key} />
                 <span className="search-name">{h.name}<small>{h.symbol}</small></span>
                 <span className={`market-badge ${h.market}`}>{MARKET_SHORT[h.market]}</span>
               </button>
