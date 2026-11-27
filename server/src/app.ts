@@ -22,6 +22,7 @@ import { registerDiagnoseRoutes } from './http/diagnoseRoutes.js';
 import { registerInfoRoutes } from './http/infoRoutes.js';
 import { registerHoldingsRoutes } from './http/holdingsRoutes.js';
 import { registerOvernightRoutes } from './http/overnightRoutes.js';
+import { registerCompareRoutes } from './http/compareRoutes.js';
 import type { Overnight } from './features/overnight.js';
 import { registerAlertRoutes } from './http/alertRoutes.js';
 import type { InstrumentCatalog } from './market/catalog.js';
@@ -94,6 +95,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerInfoRoutes(app, deps);
   registerHoldingsRoutes(app, deps);
   registerOvernightRoutes(app, deps);
+  registerCompareRoutes(app, deps);
   registerAlertRoutes(app, deps);
   return app;
 }
