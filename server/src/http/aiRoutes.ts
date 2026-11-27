@@ -44,7 +44,7 @@ export function registerAiRoutes(app: FastifyInstance, deps: FeatureDeps & { cat
   });
 
   app.post('/api/explain-point', async (req, reply) => {
-    const p = z.object({ key, bar: z.enum(BARS as ['1D']), time: z.number().int(), provider }).safeParse(req.body);
+    const p = z.object({ key, bar: z.enum(BARS as ['1D']), time: z.number().int(), to: z.number().int().nullable().optional(), provider }).safeParse(req.body);
     if (!p.success) return reply.code(400).send({ error: '잘못된 요청입니다' });
     const abort = new AbortController();
     await sendSse(reply, explainPoint(withSignal(deps, abort.signal), p.data), abort);

@@ -168,6 +168,22 @@ describe('explain point', () => {
     expect(again.find((e) => e.type === 'explanation')).toMatchObject({ cached: true });
   });
 
+  test('a dragged range is explained as one stretch and cached apart from single points', async () => {
+    const { deps, ai } = setup([[{ text: '구간 설명' }], [{ text: '한 점 설명' }]]);
+    const day = Math.floor(NOW_SEC / 86400) * 86400;
+    const from = day - 8 * 86400;
+    const to = day - 3 * 86400;
+    const ev = await collect(explainPoint(deps, { key: 'coin:BTC-USDT', bar: '1D', time: from, to, provider: 'claude' }));
+    expect(ev.find((e) => e.type === 'explanation')).toMatchObject({ text: '구간 설명' });
+    const prompt = ai.requests[0]!.userText;
+    expect(prompt).toContain('고른 구간');
+    expect(prompt).toContain('2026-11-18');
+    expect(prompt).toContain('2026-11-23');
+    expect(prompt).toMatch(/구간 등락 [+-]?\d+\.\d+%/);
+    await collect(explainPoint(deps, { key: 'coin:BTC-USDT', bar: '1D', time: from, provider: 'claude' }));
+    expect(ai.calls()).toBe(2);
+  });
+
   test('unknown point → Korean error', async () => {
     const { deps } = setup([]);
     const ev = await collect(explainPoint(deps, { key: 'coin:BTC-USDT', bar: '1D', time: 12345, provider: 'claude' }));
