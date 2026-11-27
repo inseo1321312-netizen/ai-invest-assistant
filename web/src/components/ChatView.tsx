@@ -37,7 +37,7 @@ interface Usage {
 interface ChatItem { id: number; key: string | null; title: string; createdAt: number }
 type Depth = 'light' | 'standard' | 'deep';
 
-const SUGGESTIONS = ['오늘 시장 분위기 어때?', '이 종목 언제 사는 게 좋을까?', '최근 뉴스 요약해 줘', '삼성전자 10주 있어'];
+const SUGGESTIONS = ['오늘 시장 분위기 어때?', '이 종목 언제 사는 게 좋을까?', '삼성전자 18만원 넘으면 알려줘', '삼성전자 10주 있어'];
 const DEPTHS: { value: Depth; label: string }[] = [{ value: 'light', label: '빠르게' }, { value: 'standard', label: '보통' }, { value: 'deep', label: '깊게' }];
 let seq = 0;
 

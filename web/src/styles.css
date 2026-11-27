@@ -749,3 +749,116 @@ a.ticker-item .tag { color: var(--ai); }
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
   .ticker-list.marquee { animation: none !important; }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   inzu 2.0 — 아이콘과 같은 색: 남색 밤하늘 바탕, 남보라 버튼, 민트 점은 '살아 있음·AI'에만.
+   숫자는 아이폰 둥근 숫자체(SF Pro Rounded), 상자 안의 상자는 걷어 낸다.
+   ════════════════════════════════════════════════════════════════ */
+:root {
+  --font-num: ui-rounded, 'SF Pro Rounded', 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+  --bg: #f3f4fa;
+  --surface: #ffffff;
+  --surface-2: #eceef7;
+  --surface-3: #e2e5f2;
+  --ink: #0b0e22;
+  --ink-2: #3a4062;
+  --muted: #7a809e;
+  --line: rgba(11, 14, 34, 0.07);
+  --line-strong: rgba(11, 14, 34, 0.13);
+  --ai: #4f46e5;
+  --ai-2: #6d64f5;
+  --ai-soft: rgba(79, 70, 229, 0.1);
+  --live: #12a974;
+  --live-soft: rgba(18, 169, 116, 0.12);
+  --ok: #12a974;
+  --r-m: 18px;
+  --r-l: 22px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #090b1c;
+    --surface: #11142b;
+    --surface-2: #181c38;
+    --surface-3: #232848;
+    --ink: #eef0ff;
+    --ink-2: #c3c8e6;
+    --muted: #8a91b8;
+    --line: rgba(160, 170, 255, 0.08);
+    --line-strong: rgba(160, 170, 255, 0.15);
+    --ai: #8b85ff;
+    --ai-2: #a59fff;
+    --ai-soft: rgba(139, 133, 255, 0.15);
+    --live: #5ceaaa;
+    --live-soft: rgba(92, 234, 170, 0.14);
+    --ok: #5ceaaa;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #090b1c;
+  --surface: #11142b;
+  --surface-2: #181c38;
+  --surface-3: #232848;
+  --ink: #eef0ff;
+  --ink-2: #c3c8e6;
+  --muted: #8a91b8;
+  --line: rgba(160, 170, 255, 0.08);
+  --line-strong: rgba(160, 170, 255, 0.15);
+  --ai: #8b85ff;
+  --ai-2: #a59fff;
+  --ai-soft: rgba(139, 133, 255, 0.15);
+  --live: #5ceaaa;
+  --live-soft: rgba(92, 234, 170, 0.14);
+  --ok: #5ceaaa;
+}
+
+/* 숫자: 둥근 숫자체, 자릿수 맞춤 */
+.num, .price-hero .price, .ov-value, .row-price, .trend-price, .change, .usage-pill .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.price-hero .price { font-size: 42px; font-weight: 800; letter-spacing: -0.035em; }
+.topbar h1 { font-size: 28px; letter-spacing: -0.05em; }
+.section-title { font-size: 19px; letter-spacing: -0.04em; }
+.section-head { margin-top: 28px; }
+
+/* 시장 한눈에: 그라데이션 상자와 칸마다의 상자를 걷어 내고 숫자를 크게 */
+.hero.overview { background: none; box-shadow: none; color: var(--ink); padding: 6px 0 0; margin: 14px var(--gutter) 0; border-radius: 0; overflow: visible; }
+.hero.overview::before, .hero.overview::after { display: none; }
+.overview .hero-label { color: var(--muted); font-size: 13px; }
+.overview .ov-asof { opacity: 1; color: var(--muted); }
+.overview .ov-grid { gap: 0 12px; margin-top: 4px; }
+.overview .ov-tile { background: none; border-radius: 0; padding: 12px 0 10px; border-top: 1px solid var(--line); }
+.overview .ov-label { color: var(--muted); }
+.overview .ov-value { color: var(--ink); font-size: 20px; letter-spacing: -0.03em; }
+.overview .ov-value.up, .overview .ov-sub.up { color: var(--up); }
+.overview .ov-value.down, .overview .ov-sub.down { color: var(--down); }
+.overview .ov-sub { color: var(--muted); }
+
+/* 민트 점 = 지금 살아 있음(장중, 실시간, 시간외 거래 중) */
+.ov-led.open, .session-dot.live { background: var(--live); box-shadow: 0 0 0 3px var(--live-soft); }
+@keyframes led { 0% { box-shadow: 0 0 0 0 var(--live-soft); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+/* 검색·소식 띠: 테두리 대신 살짝 다른 면 */
+.search-pill { border-color: transparent; background: var(--surface-2); min-height: 50px; }
+.ticker { border: none; background: var(--surface-2); border-radius: 16px; }
+.ticker-badge.calm { background: var(--live-soft); color: var(--live); }
+
+/* 목록·카드: 한 겹만 */
+.list { box-shadow: none; }
+.trend-card { border-color: transparent; background: var(--surface-2); border-radius: 20px; }
+.panel { box-shadow: none; }
+
+/* 하단 메뉴: 지금 화면 아래에 민트 점(아이콘의 i 점) */
+.bottom-nav { border-radius: 26px; background: color-mix(in srgb, var(--surface) 72%, transparent); }
+.bottom-nav::before { background: var(--surface-3); border-radius: 20px; }
+.bottom-nav button[aria-current='page'] { color: var(--ink); }
+.bottom-nav button[aria-current='page']::after { content: ''; position: absolute; bottom: 5px; width: 4px; height: 4px; border-radius: 50%; background: var(--live); box-shadow: 0 0 6px var(--live); }
+
+/* AI 버튼: 남보라 바탕에 아이콘처럼 아래로 깊어지는 빛 */
+.btn-ai, .btn-primary { background: linear-gradient(180deg, var(--ai-2), var(--ai)); color: #fff; border-color: transparent; box-shadow: 0 6px 18px -8px var(--ai); }
+.btn-ai:disabled, .btn-primary:disabled { box-shadow: none; }
+.target-chip { border-color: transparent; background: var(--surface-2); }
+
+/* 채팅: 사용량 원은 민트, 가득 차면 빨강 */
+.ring-fill { stroke: var(--live); }
+.usage-pill { border-color: transparent; background: var(--surface-2); }
+.agent-done { color: var(--live); }
+.overview .ov-led { background: var(--line-strong); }
+.overview .ov-led.open { background: var(--live); }
