@@ -157,22 +157,3 @@ describe('push and scheduler', () => {
     expect(jobs).toHaveLength(3);
   });
 });
-
-describe('catch-up when the app opens (server was asleep)', () => {
-  test('runs today briefing once after 08:00 KST when none exists', async () => {
-    const { ensureCatchUp } = await import('../../src/features/briefing.js');
-    const { deps, ai } = setup({ coin: ['coin:BTC-USDT'], script: [[briefingSubmit([{ key: 'coin:BTC-USDT', isBreaking: false, opinion: '관망' }])]] });
-    await ensureCatchUp(deps);
-    await ensureCatchUp(deps);
-    expect(ai.requests.filter((r) => r.instructions.includes('아침 브리핑')).length).toBe(1);
-    expect(listFeed(deps.db, '2026-11-26').some((f) => f.kind === 'briefing')).toBe(true);
-  });
-
-  test('does not run the briefing before 08:00 KST', async () => {
-    const { ensureCatchUp } = await import('../../src/features/briefing.js');
-    const { deps, ai } = setup({ coin: ['coin:BTC-USDT'], now: Date.UTC(2026, 10, 25, 22, 0) }); // KST 07:00
-    await ensureCatchUp(deps);
-    expect(ai.requests.filter((r) => r.instructions.includes('아침 브리핑')).length).toBe(0);
-  });
-
-});

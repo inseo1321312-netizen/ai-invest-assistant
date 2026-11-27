@@ -4,7 +4,7 @@ import type { Sentiment } from './sentiment.js';
 
 export type OverviewId = 'kospi' | 'kosdaq' | 'spx' | 'nasdaq' | 'usdkrw' | 'fng' | 'kimchi' | 'gold' | 'silver' | 'copper';
 /** open: 지수 시장이 열려 있는지(모르면 null) */
-export interface OverviewItem { id: OverviewId; label: string; value: number | null; changePct: number | null; note: string | null; open: boolean | null }
+export interface OverviewItem { id: OverviewId; label: string; value: number | null; changePct: number | null; note: string | null; open: boolean | null; tradedAt?: number }
 
 const TTL_MS = 60_000;
 
@@ -18,7 +18,7 @@ export function createMarketOverview(deps: {
   okx: { getQuote(instId: string): Promise<{ price: number }> };
   now: () => number;
   /** 금·은·구리 선물 시세(네이버). 없으면 그 칸은 빈다 */
-  metals?: ((code: 'GCcv1' | 'SIcv1' | 'HGcv1') => Promise<{ value: number; changePct: number; open?: boolean }>) | null;
+  metals?: ((code: 'GCcv1' | 'SIcv1' | 'HGcv1') => Promise<{ value: number; changePct: number; open?: boolean; tradedAt?: number }>) | null;
 }): MarketOverview {
   let cached: { at: number; items: Promise<OverviewItem[]> } | null = null;
   const safe = <T>(p: Promise<T>): Promise<T | null> => p.catch(() => null);
@@ -37,8 +37,9 @@ export function createMarketOverview(deps: {
       safe(deps.okx.getQuote('BTC-USDT')),
       metal('GCcv1'), metal('SIcv1'), metal('HGcv1'),
     ]);
-    const idx = (id: OverviewId, label: string, q: { value: number; changePct: number; open?: boolean } | null): OverviewItem => ({
+    const idx = (id: OverviewId, label: string, q: { value: number; changePct: number; open?: boolean; tradedAt?: number } | null): OverviewItem => ({
       id, label, value: q && q.value > 0 ? q.value : null, changePct: q && q.value > 0 ? q.changePct : null, note: null, open: q?.open ?? null,
+      ...(q?.tradedAt ? { tradedAt: q.tradedAt } : {}),
     });
     const upbitBtc = upbit?.get('BTC') ?? null;
     const kimchi = fx && upbitBtc && okxBtc?.price ? (upbitBtc / (okxBtc.price * fx) - 1) * 100 : null;

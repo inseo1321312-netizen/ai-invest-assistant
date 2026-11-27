@@ -54,6 +54,8 @@ const unixOf = (s: unknown): number | null => {
 
 /** 네이버 장 상태: 알면 { open }, 모르면 {} */
 const openOf = (d: Realtime): { open?: boolean } => (d.marketStatus === 'OPEN' ? { open: true } : d.marketStatus === 'CLOSE' ? { open: false } : {});
+/** 마지막 체결 시각(알 때만): 밤사이에 장이 있었는지 가리는 데 쓴다 */
+const tradedOf = (d: Realtime): { tradedAt?: number } => { const t = unixOf(d.localTradedAt); return t === null ? {} : { tradedAt: t }; };
 
 /** 네이버가 알려 주는 장 상태(공휴일 포함)와 프리·애프터마켓 가격을 붙인다 */
 function withSession(quote: Quote, d: Realtime): Quote {
@@ -237,18 +239,18 @@ export function createNaverClient(deps: { fetch: typeof fetch; now?: () => numbe
 
     async getIndex(code) {
       const d = await realtime(`domestic/index/${KR_INDEX[code]}`);
-      return { value: num(d.closePrice), changePct: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code), ...openOf(d) } satisfies IndexQuote;
+      return { value: num(d.closePrice), changePct: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code), ...openOf(d), ...tradedOf(d) } satisfies IndexQuote;
     },
 
     async getMetal(code) {
       const d = await get<Realtime & { fluctuationsType?: { code?: string } }>(`https://api.stock.naver.com/marketindex/metals/${code}`);
       if (!d.closePrice) throw new Error('시세 없음');
-      return { value: num(d.closePrice), changePct: signedPct(d.fluctuationsRatio, d.fluctuationsType?.code), ...openOf(d) };
+      return { value: num(d.closePrice), changePct: signedPct(d.fluctuationsRatio, d.fluctuationsType?.code), ...openOf(d), ...tradedOf(d) };
     },
 
     async getUsIndex(symbol) {
       const d = await realtime(`worldstock/index/${US_INDEX[symbol]}`);
-      return { value: num(d.closePrice), changePct: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code), ...openOf(d) };
+      return { value: num(d.closePrice), changePct: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code), ...openOf(d), ...tradedOf(d) };
     },
 
     async getBasicInfo(inst) {

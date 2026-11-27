@@ -42,7 +42,7 @@ function hourly(fromMs: number, n: number, start: number, step: number): Candle[
   });
 }
 
-function setup(script: FakeStep[][], opts: { holdings?: string[]; favorites?: string[]; news?: (q: string) => NewsItem[] } = {}) {
+function setup(script: FakeStep[][], opts: { holdings?: string[]; favorites?: string[]; news?: (q: string) => NewsItem[]; quotes?: Record<string, Partial<Quote>>; usTradedAt?: number } = {}) {
   const db = openDb(':memory:');
   for (const k of opts.holdings ?? []) db.sql.prepare('INSERT INTO holdings (key, market, quantity, avg_price, added_at) VALUES (?, ?, ?, ?, ?)').run(k, k.split(':')[0]!, 1, null, 1);
   for (const k of opts.favorites ?? []) db.sql.prepare('INSERT INTO watchlist (key, market, added_at) VALUES (?, ?, ?)').run(k, k.split(':')[0]!, 2);
@@ -52,6 +52,8 @@ function setup(script: FakeStep[][], opts: { holdings?: string[]; favorites?: st
     [AAPL]: { instrument: parseInstrumentKey(AAPL), price: 361.2, changePct24h: 1.72, currency: 'USD', time: 0 },
     [SS]: { instrument: parseInstrumentKey(SS), price: 179500, changePct24h: 4.8, currency: 'KRW', time: 0 },
   };
+  for (const [k, q] of Object.entries(opts.quotes ?? {})) quotes[k] = { ...(quotes[k] ?? { instrument: parseInstrumentKey(k), price: 100, changePct24h: 0, currency: 'USD', time: 0 }), ...q } as Quote;
+  const usTradedAt = opts.usTradedAt ?? KST('2026-11-28T06:00:00') / 1000;
   const key = (i: Instrument) => `${i.market}:${i.market === 'us' ? `${i.exchange}:` : ''}${i.symbol}`;
   const market = {
     async getQuote(i: Instrument) { const q = quotes[key(i)]; if (!q) throw new Error('none'); return q; },
@@ -60,8 +62,8 @@ function setup(script: FakeStep[][], opts: { holdings?: string[]; favorites?: st
   const ai = fakeRunAi(script);
   const news = { search: async (q: string) => (opts.news ? opts.news(q) : []) };
   const overview = { get: async () => [
-    { id: 'spx', label: 'S&P500', value: 6012.5, changePct: 0.8, note: null, open: false },
-    { id: 'nasdaq', label: '나스닥', value: 19250.1, changePct: 1.2, note: null, open: false },
+    { id: 'spx', label: 'S&P500', value: 6012.5, changePct: 0.8, note: null, open: false, tradedAt: usTradedAt },
+    { id: 'nasdaq', label: '나스닥', value: 19250.1, changePct: 1.2, note: null, open: false, tradedAt: usTradedAt },
     { id: 'usdkrw', label: '원/달러', value: 1338.2, changePct: null, note: null, open: null },
     { id: 'kimchi', label: '김치 프리미엄', value: 0.57, changePct: null, note: null, open: null },
     { id: 'gold', label: '금', value: 3671, changePct: 3.82, note: null, open: true },
@@ -96,7 +98,7 @@ describe('runOvernight', () => {
     expect(btc.pct).toBeCloseTo((94000 / 96800 - 1) * 100, 6);
     expect(r.facts.items[1]).toMatchObject({ kind: 'session', price: 361.2, pct: 1.72 });
     expect(r.facts.market.btc).toMatchObject({ from: 96800, to: 94000 });
-    expect(r.facts.market.nasdaq).toEqual({ value: 19250.1, changePct: 1.2 });
+    expect(r.facts.market.nasdaq).toEqual({ value: 19250.1, changePct: 1.2, traded: true });
     expect(r.facts.market.usdkrw).toBe(1338.2);
     expect(r.facts.market.metals).toEqual({ gold: { value: 3671, changePct: 3.82 }, silver: { value: 43.72, changePct: -1.2 }, copper: { value: 5.5635, changePct: 0.4 } });
     expect(s.ai.requests[0]!.userText).toContain('금 $3,671');
@@ -204,5 +206,90 @@ describe('overnight routes', () => {
     expect(h).toHaveLength(1);
     expect((await app.inject({ method: 'GET', url: `/api/overnight/${h[0].id}`, headers: { cookie } })).json().recap.id).toBe(h[0].id);
     expect((await app.inject({ method: 'GET', url: '/api/overnight/999', headers: { cookie } })).statusCode).toBe(404);
+  });
+});
+
+describe('review fixes', () => {
+  const ok = (items: { key: string; note: string }[] = []) => submit({ items, news: [] });
+  const session = (open: boolean, tradedAt: number) => ({ session: { open, tradedAt, extended: null } });
+
+  test('a Korean stock trading now is shown as today, not as closed', async () => {
+    const s = setup([[ok([{ key: SS, note: '장중 강세' }])]], { favorites: [SS], quotes: { [SS]: session(true, KST('2026-11-28T09:40:00') / 1000) } });
+    const r = await runOvernight(s.deps, { ...s.args, to: KST('2026-11-28T09:45:00') });
+    expect(r.facts.items[0]).toMatchObject({ key: SS, kind: 'today', price: 179500 });
+    expect(r.facts.items[0]!.fromPrice).toBeCloseTo(179500 / 1.048, 6);
+    expect(s.ai.requests[0]!.userText).toContain('오늘 장중');
+  });
+
+  test('no US session in the window (weekend, holiday): indices and US stocks say closed, and the range has weekdays', async () => {
+    const friday = KST('2026-11-28T06:00:00') / 1000 - 86400;
+    const s = setup([[ok([{ key: AAPL, note: '휴장' }])]], { favorites: [AAPL], usTradedAt: friday, quotes: { [AAPL]: session(false, friday) } });
+    const r = await runOvernight(s.deps, s.args);
+    expect(r.facts.market.spx).toMatchObject({ traded: false });
+    expect(r.facts.items[0]).toMatchObject({ key: AAPL, kind: 'closed' });
+    const text = s.ai.requests[0]!.userText;
+    expect(text).toContain('미국장 휴장');
+    expect(text).not.toContain('밤사이 미국 정규장 결과');
+    expect(text).toMatch(/2026-11-27\(금\) 23:00 ~ 2026-11-28\(토\) 07:00/);
+  });
+
+  test('a one-letter ticker does not pick up unrelated news, and market news keeps its slots', async () => {
+    const F = 'us:NYS:F';
+    const many = Array.from({ length: 9 }, (_, i) => `coin:C${i}-USDT`);
+    const s = setup([[ok()]], {
+      favorites: [F, ...many],
+      quotes: { [F]: { ...session(false, KST('2026-11-28T06:00:00') / 1000), price: 12, changePct24h: 1, currency: 'USD' }, ...Object.fromEntries(many.map((k) => [k, { price: 1, changePct24h: 0, currency: 'USDT' }])) },
+      news: (q: string) => (q.includes('뉴욕') ? [inWindow('뉴욕증시 마감', 'https://m/1')] : q.startsWith('F ') ? [inWindow('ETF 자금 유입', 'https://x/etf')] : [inWindow(`${q.split(' ')[0]} 소식 하나`, `https://c/${q}/1`), inWindow(`${q.split(' ')[0]} 소식 둘`, `https://c/${q}/2`)]),
+      instruments: undefined,
+    } as never);
+    const r = await runOvernight(s.deps, s.args);
+    const urls = r.facts.news.map((n) => n.url);
+    expect(urls).not.toContain('https://x/etf');
+    expect(urls).toContain('https://m/1');
+    expect(urls.length).toBeLessThanOrEqual(15);
+  });
+});
+
+describe('review fixes: when it runs', () => {
+  function scheduled(script: FakeStep[][], at: string) {
+    const s = setup(script, { holdings: [BTC] });
+    let t = KST(at);
+    const sent: unknown[] = [];
+    const o = createOvernight({ ...s.deps, now: () => t, provider: () => 'gpt', push: { sendAll: async (p) => { sent.push(p); } } });
+    return { ...s, o, sent, set: (x: string) => { t = KST(x); } };
+  }
+  const ok = submit({ items: [{ key: BTC, note: 'x' }], news: [] });
+  const bad: FakeStep[] = [{ text: '...' }];
+
+  test('a catch-up long after the wake time (server was asleep) does not push', async () => {
+    const s = scheduled([[ok]], '2026-11-28T09:30:00');
+    await s.o.tick();
+    expect(latestOvernight(s.db)).not.toBeNull();
+    expect(s.sent).toEqual([]);
+  });
+
+  test('automatic tries stop after three failures in a day', async () => {
+    const s = scheduled(Array.from({ length: 10 }, () => bad), '2026-11-28T07:01:00');
+    for (const at of ['07:01', '07:40', '08:20', '09:00', '09:40']) { s.set(`2026-11-28T${at}:00`); await s.o.tick(); }
+    expect(s.ai.calls()).toBe(6); // 3번 × (처음 + 다시 요청)
+  });
+
+  test('a failed manual rerun does not hold back the automatic run', async () => {
+    const s = scheduled([bad, bad, [ok]], '2026-11-28T06:30:00');
+    await s.o.rerun();
+    expect(s.o.state().error).not.toBeNull();
+    s.set('2026-11-28T07:01:00');
+    await s.o.tick();
+    expect(latestOvernight(s.db)?.origin).toBe('scheduled');
+  });
+
+  test('다시 정리 starts from the last bedtime before now', async () => {
+    const late = scheduled([[ok]], '2026-11-28T23:30:00');
+    await late.o.rerun();
+    expect(latestOvernight(late.db)?.from).toBe(KST('2026-11-28T23:00:00'));
+    const early = scheduled([[ok]], '2026-11-28T00:30:00');
+    saveSettings(early.db, { sleep: '01:00', wake: '07:00', notify: true });
+    await early.o.rerun();
+    expect(latestOvernight(early.db)?.from).toBe(KST('2026-11-27T01:00:00'));
   });
 });

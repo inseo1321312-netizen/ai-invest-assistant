@@ -49,14 +49,15 @@ export function overnightWindow(s: OvernightSettings, nowMs: number): { from: nu
 
 export interface OvernightItemFacts {
   key: string; name: string | null; market: MarketId; price: number | null; fromPrice: number | null; currency: Currency | null; pct: number | null;
-  /** night: 밤새 거래(코인), session: 밤사이 열린 정규장(미국), closed: 밤엔 거래 없음(한국) */
-  kind: 'night' | 'session' | 'closed';
+  /** night: 밤새 거래(코인), session: 밤사이 열린 정규장(미국), today: 지금 장중(한국), closed: 밤사이 거래 없음(한국 밤, 미국 휴장) */
+  kind: 'night' | 'session' | 'today' | 'closed';
   extended: { price: number; changePct: number } | null;
 }
 export interface OvernightFacts {
   market: {
-    spx: { value: number; changePct: number | null } | null;
-    nasdaq: { value: number; changePct: number | null } | null;
+    /** traded: 범위 안에 미국 정규장이 있었는지(모르면 null) */
+    spx: { value: number; changePct: number | null; traded?: boolean | null } | null;
+    nasdaq: { value: number; changePct: number | null; traded?: boolean | null } | null;
     btc: { from: number; to: number; pct: number; high: number; low: number } | null;
     usdkrw: number | null;
     kimchi: number | null;
@@ -76,6 +77,17 @@ export type OvernightDeps = FeatureDeps & { overview?: { get(): Promise<Overview
 const MAX_ITEMS = 12;
 const BTC = 'coin:BTC-USDT';
 const MARKET_NEWS = ['뉴욕증시', '비트코인'];
+const MAX_NEWS = 15;
+
+/** 제목에 이 종목이 나오는지: 한글 이름은 그대로, 영문 기호는 단어 단위로(F가 ETF에 걸리지 않게) */
+export function mentions(title: string, words: string[]): boolean {
+  const t = title.toLowerCase();
+  return words.some((w) => {
+    const x = w.toLowerCase();
+    if (!/^[a-z0-9.]+$/.test(x)) return t.includes(x);
+    return new RegExp(`(^|[^a-z0-9])${x.replace(/\./g, '\\.')}($|[^a-z0-9])`).test(t);
+  });
+}
 
 /** 보유 → 즐겨찾기, 중복 없이 최대 12개 */
 function myKeys(db: Db): string[] {
@@ -98,6 +110,9 @@ async function gatherFacts(deps: OvernightDeps, fromMs: number, toMs: number): P
   const overview = await (deps.overview?.get() ?? Promise.resolve([] as OverviewItem[])).catch(() => [] as OverviewItem[]);
   const ov = (id: string) => overview.find((o) => o.id === id);
   const idx = (id: string) => { const o = ov(id); return o && o.value !== null ? { value: o.value, changePct: o.changePct } : null; };
+  // 미국 지수의 마지막 체결이 범위 안이면 밤사이 장이 있었다(주말·휴일이면 범위 앞)
+  const usTraded = (id: string) => { const t = ov(id)?.tradedAt; return t ? t * 1000 >= fromMs : null; };
+  const usIdx = (id: string) => { const v = idx(id); return v ? { ...v, traded: usTraded(id) } : null; };
   const btcQuote = await deps.market.getQuote(parseInstrumentKey(BTC)).catch(() => null);
 
   const keys = myKeys(deps.db);
@@ -112,10 +127,15 @@ async function gatherFacts(deps: OvernightDeps, fromMs: number, toMs: number): P
       return { key, name, market: 'coin', price: m?.to ?? q?.price ?? null, fromPrice: m?.from ?? null, currency: q?.currency ?? 'USDT', pct: m?.pct ?? null, kind: 'night', extended: null };
     }
     const pct = q ? q.changePct24h : null;
+    const traded = q?.session?.tradedAt ?? null;
+    // 미국: 마지막 체결이 범위 앞이면 밤사이 휴장. 한국: 지금 장이 열려 있으면 오늘 장중
+    const kind: OvernightItemFacts['kind'] = inst.market === 'us'
+      ? (traded !== null && traded * 1000 < fromMs ? 'closed' : 'session')
+      : (q?.session?.open ? 'today' : 'closed');
     return {
       key, name, market: inst.market, price: q?.price ?? null, currency: q?.currency ?? (inst.market === 'kr' ? 'KRW' : 'USD'), pct,
-      fromPrice: inst.market === 'us' && q && pct !== null ? q.price / (1 + pct / 100) : null,
-      kind: inst.market === 'us' ? 'session' : 'closed', extended,
+      fromPrice: (kind === 'session' || kind === 'today') && q && pct !== null ? q.price / (1 + pct / 100) : null,
+      kind, extended,
     };
   }));
 
@@ -125,20 +145,22 @@ async function gatherFacts(deps: OvernightDeps, fromMs: number, toMs: number): P
   const search = (q: string) => (deps.news ? deps.news.search(q, range).catch(() => [] as NewsItem[]) : Promise.resolve([] as NewsItem[]));
   const perItem = await Promise.all(items.map(async (it) => {
     const inst = parseInstrumentKey(it.key);
-    const words = [it.name, inst.symbol.split('-')[0]].filter((w): w is string => !!w).map((w) => w.toLowerCase());
-    const list = (await search(newsQueryFor(inst, it.name))).filter((n) => inRange(n) && words.some((w) => n.title.toLowerCase().includes(w)));
+    const words = [it.name, inst.symbol.split('-')[0]].filter((w): w is string => !!w);
+    const list = (await search(newsQueryFor(inst, it.name))).filter((n) => inRange(n) && mentions(n.title, words));
     return list.slice(0, 2).map((n) => ({ ...n, key: it.key }));
   }));
   const market = await Promise.all(MARKET_NEWS.map(async (q) => (await search(q)).filter(inRange).slice(0, 3).map((n) => ({ ...n, key: null as string | null }))));
+  // 시장 뉴스 자리를 먼저 잡아 두고, 남는 자리를 종목 뉴스로 채운다(종목이 많아도 시장 소식이 밀려나지 않게)
   const seen = new Set<string>();
-  const news = [...perItem.flat(), ...market.flat()]
-    .filter((n) => (seen.has(n.url) ? false : (seen.add(n.url), true)))
-    .slice(0, 15)
+  const uniq = <T extends { url: string }>(list: T[]) => list.filter((n) => (seen.has(n.url) ? false : (seen.add(n.url), true)));
+  const marketNews = uniq(market.flat());
+  const itemNews = uniq(perItem.flat()).slice(0, Math.max(0, MAX_NEWS - marketNews.length));
+  const news = [...itemNews, ...marketNews]
     .map((n, i) => ({ n: i + 1, title: n.title, url: n.url, source: n.source, publishedAt: n.publishedAt, key: n.key }));
 
   return {
     market: {
-      spx: idx('spx'), nasdaq: idx('nasdaq'),
+      spx: usIdx('spx'), nasdaq: usIdx('nasdaq'),
       btc: await nightMove(deps, BTC, fromMs, toMs, btcQuote?.price ?? null),
       usdkrw: ov('usdkrw')?.value ?? null, kimchi: ov('kimchi')?.value ?? null,
       metals: { gold: idx('gold'), silver: idx('silver'), copper: idx('copper') },
@@ -148,14 +170,20 @@ async function gatherFacts(deps: OvernightDeps, fromMs: number, toMs: number): P
   };
 }
 
+const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+/** '2026-11-28(토) 07:00' */
+const withDay = (ms: number) => { const s = kstDateTime(Math.floor(ms / 1000)); return `${s.slice(0, 10)}(${DAYS[new Date(ms + 9 * 3600_000).getUTCDay()]})${s.slice(10)}`; };
+
 const pct = (n: number | null) => (n === null ? '알 수 없음' : `${n > 0 ? '+' : ''}${n.toFixed(2)}%`);
 
 function factsText(f: OvernightFacts, fromMs: number, toMs: number): string {
   const m = f.market;
   const lines = [
-    `범위: ${kstDateTime(Math.floor(fromMs / 1000))} ~ ${kstDateTime(Math.floor(toMs / 1000))} (한국 시간)`,
+    `범위: ${withDay(fromMs)} ~ ${withDay(toMs)} (한국 시간)`,
     `[시장]`,
-    `S&P500 ${m.spx ? `${fmtNum(m.spx.value)} (${pct(m.spx.changePct)})` : '알 수 없음'}, 나스닥 ${m.nasdaq ? `${fmtNum(m.nasdaq.value)} (${pct(m.nasdaq.changePct)})` : '알 수 없음'} — 밤사이 미국 정규장 결과`,
+    m.spx?.traded === false
+      ? `미국장 휴장(밤사이 정규장 없음). 마지막 거래 기준 S&P500 ${fmtNum(m.spx.value)} (${pct(m.spx.changePct)}), 나스닥 ${m.nasdaq ? `${fmtNum(m.nasdaq.value)} (${pct(m.nasdaq.changePct)})` : '알 수 없음'}`
+      : `S&P500 ${m.spx ? `${fmtNum(m.spx.value)} (${pct(m.spx.changePct)})` : '알 수 없음'}, 나스닥 ${m.nasdaq ? `${fmtNum(m.nasdaq.value)} (${pct(m.nasdaq.changePct)})` : '알 수 없음'} — 밤사이 미국 정규장 결과`,
     `비트코인 밤사이 ${m.btc ? `${fmtNum(m.btc.from)} → ${fmtNum(m.btc.to)} USDT (${pct(m.btc.pct)}, 최고 ${fmtNum(m.btc.high)}, 최저 ${fmtNum(m.btc.low)})` : '알 수 없음'}`,
     `원/달러 ${m.usdkrw === null ? '알 수 없음' : `${m.usdkrw.toFixed(1)}원`}, 김치 프리미엄 ${pct(m.kimchi)}`,
     `원자재(선물, 달러): ${(['gold', 'silver', 'copper'] as const).map((k) => { const v = m.metals?.[k]; const label = { gold: '금', silver: '은', copper: '구리' }[k]; return v ? `${label} $${v.value.toLocaleString('en-US', { maximumFractionDigits: 2 })} (${pct(v.changePct)})` : `${label} 알 수 없음`; }).join(', ')}`,
@@ -165,8 +193,10 @@ function factsText(f: OvernightFacts, fromMs: number, toMs: number): string {
       if (it.price === null) return `${label}: 시세를 가져오지 못했습니다`;
       if (it.kind === 'night') return `${label}: 밤사이 ${it.fromPrice !== null ? `${fmtNum(it.fromPrice)} → ` : ''}${fmtNum(it.price)} ${it.currency} (${pct(it.pct)})`;
       const ext = it.extended ? `, 시간외 ${fmtNum(it.extended.price)} (${pct(it.extended.changePct)})` : '';
-      return it.kind === 'session'
-        ? `${label}: 밤사이 정규장 ${fmtNum(it.price)} ${it.currency} (${pct(it.pct)})${ext}`
+      if (it.kind === 'session') return `${label}: 밤사이 정규장 ${fmtNum(it.price)} ${it.currency} (${pct(it.pct)})${ext}`;
+      if (it.kind === 'today') return `${label}: 오늘 장중 ${fmtNum(it.price)} ${it.currency} (${pct(it.pct)})${ext}`;
+      return it.market === 'us'
+        ? `${label}: 미국장 휴장. 마지막 종가 ${fmtNum(it.price)} ${it.currency} (${pct(it.pct)})${ext}`
         : `${label}: 밤엔 거래 없음. 어제 종가 ${fmtNum(it.price)} ${it.currency} (${pct(it.pct)})${ext}`;
     }),
     `[뉴스 목록] ${f.news.length ? '' : '없음'}`,
@@ -265,6 +295,16 @@ export async function runOvernight(deps: OvernightDeps, args: { from: number; to
 }
 
 const RETRY_AFTER_FAIL_MS = 30 * 60_000;
+const MAX_AUTO_TRIES = 3;
+/** 정리 시각에서 이만큼 지나 만든 것(서버가 자고 있다 깨어난 경우)은 알림을 보내지 않는다 */
+const PUSH_WINDOW_MS = 30 * 60_000;
+
+/** 지금보다 앞선 가장 최근 잠든 시각: 오늘 잠든 시각이 아직 안 왔으면 하루 전 */
+export function lastBedtime(s: OvernightSettings, nowMs: number): number {
+  const midnight = Date.parse(`${kstDay(nowMs)}T00:00:00+09:00`);
+  const t = midnight + minutesOf(s.sleep) * 60_000;
+  return t > nowMs ? t - 24 * 3600_000 : t;
+}
 
 /**
  * 언제 만들지: 오늘 정리 시각이 지났는데 오늘 자동 정리가 없으면 뒤에서 하나 만든다(한 번에 하나).
@@ -279,14 +319,20 @@ export function createOvernight(deps: Omit<OvernightDeps, 'provider'> & { provid
   function start(origin: 'scheduled' | 'manual', notify: boolean): Promise<void> {
     if (running) return running;
     error = null;
-    const w = overnightWindow(readSettings(deps.db), deps.now());
-    running = runOvernight({ ...deps, provider: deps.provider() }, { from: w.from, to: deps.now(), day: w.day, origin })
+    const s = readSettings(deps.db);
+    const w = overnightWindow(s, deps.now());
+    const from = origin === 'manual' ? lastBedtime(s, deps.now()) : w.from;
+    if (origin === 'scheduled') {
+      const tries = deps.db.kvGet<{ day: string; n: number }>('overnight.autoTries');
+      deps.db.kvSet('overnight.autoTries', { day: w.day, n: tries?.day === w.day ? tries.n + 1 : 1 });
+    }
+    running = runOvernight({ ...deps, provider: deps.provider() }, { from, to: deps.now(), day: w.day, origin })
       .then(async (r) => {
-        if (notify) await deps.push.sendAll({ title: '밤사이 정리', body: r.headline, url: '/?tab=overnight' }).catch(() => undefined);
+        if (notify && deps.now() - w.to < PUSH_WINDOW_MS) await deps.push.sendAll({ title: '밤사이 정리', body: r.headline, url: '/?tab=overnight' }).catch(() => undefined);
       })
       .catch((e: unknown) => {
         error = e instanceof Error && e.message ? e.message : FAILED;
-        failedAt = deps.now();
+        if (origin === 'scheduled') failedAt = deps.now();
       })
       .finally(() => { running = null; });
     return running;
@@ -297,6 +343,8 @@ export function createOvernight(deps: Omit<OvernightDeps, 'provider'> & { provid
     const w = overnightWindow(readSettings(deps.db), deps.now());
     if (deps.now() < w.to || hasScheduled(deps.db, w.day)) return Promise.resolve();
     if (failedAt && deps.now() - failedAt < RETRY_AFTER_FAIL_MS) return Promise.resolve();
+    const tries = deps.db.kvGet<{ day: string; n: number }>('overnight.autoTries');
+    if (tries?.day === w.day && tries.n >= MAX_AUTO_TRIES) return Promise.resolve();
     return start('scheduled', opts.notify);
   }
 

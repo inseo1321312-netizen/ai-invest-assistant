@@ -164,7 +164,7 @@ async function main() {
   });
   await app.listen({ host: '0.0.0.0', port: config.port });
   console.log(`서버 시작: 포트 ${config.port}`);
-  // 깨어나자마자 밀린 작업(오늘 브리핑, 급변 확인)을 뒤에서 한다
+  // 깨어나자마자 밀린 작업(오늘 밤사이 정리)을 뒤에서 한다
   void catchUp();
   void instruments.warm();
 

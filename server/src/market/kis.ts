@@ -14,7 +14,8 @@ export class KisError extends Error {}
 
 export interface RankRow { code: string | null; symbol: string | null; exchange: UsExchange | null; name: string; price: number; changePct: number; value: number | null }
 /** open: 장이 열려 있는지(알 수 있을 때만, 공휴일 포함) */
-export interface IndexQuote { value: number; changePct: number; open?: boolean }
+/** tradedAt: 마지막 체결 시각(unix 초, 알 때만) */
+export interface IndexQuote { value: number; changePct: number; open?: boolean; tradedAt?: number }
 export interface StockInfo { marketCap: number | null; per: number | null; pbr: number | null; eps: number | null; high52: number | null; low52: number | null; currency: 'KRW' | 'USD' }
 
 export interface KisClient {
