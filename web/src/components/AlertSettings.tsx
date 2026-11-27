@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
-import { useToast } from '../ui';
+import { Icon, useToast } from '../ui';
+import { alertLabel, type PriceAlert } from './PriceAlertSheet';
 import { Avatar } from './rows';
 
 interface Settings { m5: number; m15: number; h1: number; events: boolean }
@@ -51,6 +52,8 @@ export function AlertSettings() {
   }
 
   return (
+    <>
+    <PriceAlertsPanel />
     <section className="panel" aria-label="알림 코인">
       <h2>알림 코인</h2>
       {coins && coins.length === 0 && <p className="small muted">코인 화면에서 🔔을 누르면 여기에 추가돼요.</p>}
@@ -83,6 +86,36 @@ export function AlertSettings() {
         </>
       )}
       {toast}
+    </section>
+    </>
+  );
+}
+
+/** 걸어 둔 목표가 알림 전체(종목 화면이나 AI 상담에서 건다) */
+function PriceAlertsPanel() {
+  const [alerts, setAlerts] = useState<PriceAlert[] | null>(null);
+  useEffect(() => {
+    api<{ alerts: PriceAlert[] }>('/api/price-alerts').then((r) => setAlerts(r.alerts)).catch(() => setAlerts([]));
+  }, []);
+  async function remove(id: number) {
+    setAlerts((list) => (list ?? []).filter((a) => a.id !== id));
+    await api(`/api/price-alerts/${id}`, { method: 'DELETE' }).catch(() => undefined);
+  }
+  return (
+    <section className="panel" aria-label="목표가 알림">
+      <h2>목표가 알림</h2>
+      {alerts && alerts.length === 0 && <p className="small muted">종목 화면의 🔔 목표가나 AI 상담에서 걸 수 있어요.</p>}
+      {alerts && alerts.length > 0 && (
+        <ul className="target-list">
+          {alerts.map((a) => (
+            <li key={a.id}>
+              <span className={`target-dir ${a.op}`} aria-hidden="true">{a.op === 'above' ? '▲' : '▼'}</span>
+              <span><b>{a.name ?? a.key.split(':').at(-1)}</b> <span className="num">{alertLabel(a)}</span></span>
+              <button type="button" className="icon-btn" aria-label={`${a.name ?? a.key} ${alertLabel(a)} 알림 지우기`} onClick={() => remove(a.id)}><Icon.trash /></button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

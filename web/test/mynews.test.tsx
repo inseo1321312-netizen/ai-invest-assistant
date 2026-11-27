@@ -45,7 +45,6 @@ test('holdings of this market show quantity and profit; edit lets you remove one
   render(<Holdings market="kr" onOpen={onOpen} />);
   const section = await screen.findByRole('region', { name: '보유 종목' });
   expect(within(section).getByText(/10주/)).toBeTruthy();
-  expect(within(section).getByText('수익 +7.2%')).toBeTruthy();
   expect(within(section).queryByText('애플')).toBeNull();
   await userEvent.click(within(section).getByRole('button', { name: '편집' }));
   await userEvent.click(within(section).getByRole('button', { name: '삼성전자 보유 종목에서 빼기' }));

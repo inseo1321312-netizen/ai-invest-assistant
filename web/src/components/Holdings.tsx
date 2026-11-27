@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import { changeClass, formatPct, formatPrice } from '../format';
 import type { Instrument, MarketId, Quote } from '../types';
 import { Avatar, DisplayName, PriceCell } from './rows';
 
@@ -45,8 +44,6 @@ export function Holdings({ market, onOpen }: { market: MarketId; onOpen: (key: s
               <PriceCell price={h.quote?.price ?? null} currency={h.quote?.currency ?? 'USDT'} change={h.quote?.changePct24h ?? null} />
               <span className="row-sub num hold-sub">
                 {h.quantity !== null ? `${h.quantity.toLocaleString('ko-KR')}${unit(h.market)}` : '수량 모름'}
-                {h.avgPrice !== null && h.quote && ` · 평단 ${formatPrice(h.avgPrice, h.quote.currency)}`}
-                {h.plPct !== null && <> · <span className={`hold-pl ${changeClass(h.plPct)}`}>수익 {formatPct(h.plPct)}</span></>}
               </span>
             </button>
             {editing && (

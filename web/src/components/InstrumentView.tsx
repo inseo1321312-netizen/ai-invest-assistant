@@ -14,6 +14,7 @@ import { parseKey } from '../format';
 import { AnalysisPanel, emptyRun, PROVIDER_LABEL, type RunState } from './AnalysisPanel';
 import { CandleChart, DEFAULT_INDICATORS, type Indicators } from './CandleChart';
 import { aiReady, usePreferredProvider } from '../aiReady';
+import { PriceAlertSheet } from './PriceAlertSheet';
 
 const COIN_BARS: { value: Bar; label: string }[] = [
   { value: '5m', label: '5분' }, { value: '1H', label: '1시간' }, { value: '4H', label: '4시간' }, { value: '1D', label: '일' }, { value: '1W', label: '주' },
@@ -87,6 +88,7 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
   const [runs, setRuns] = useState<Partial<Record<ProviderId, RunState>>>({});
   const [explainAt, setExplainAt] = useState<{ time: number; to: number | null; pct: number | null } | null>(null);
   const preferred = usePreferredProvider();
+  const [targetOpen, setTargetOpen] = useState(false);
   const [hint, setHint] = useState(() => { try { return localStorage.getItem('hint.chartDrag') !== '1'; } catch { return false; } });
   const [name, setName] = useState<string | null>(null);
   const [fav, setFav] = useState(false);
@@ -226,7 +228,13 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
 
       <div className="price-hero">
         <p className={`price num ${flash}`}>{quote ? formatPrice(shownPrice || quote.price, quote.currency) : <span className="skeleton" style={{ display: 'inline-block', width: 160, height: 30 }} />}</p>
-        {quote && <div className="sub"><span className={`change num ${changeClass(quote.changePct24h)}`}>{formatPct(quote.changePct24h)}</span><span className="small muted">{isCoin ? '24시간' : '전일 대비'}</span></div>}
+        {quote && (
+          <div className="sub">
+            <span className={`change num ${changeClass(quote.changePct24h)}`}>{formatPct(quote.changePct24h)}</span>
+            <span className="small muted">{isCoin ? '24시간' : '전일 대비'}</span>
+            <button type="button" className="target-chip" onClick={() => setTargetOpen(true)}><Icon.bell /> 목표가 알림</button>
+          </div>
+        )}
         {quote?.session && <SessionLine session={quote.session} currency={quote.currency} />}
         {stats && quote && (
           <div className="range rise" role="img" aria-label={`1년 가격 범위에서 ${Math.round(stats.position * 100)}% 위치`}>
@@ -260,6 +268,7 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
         </dl>
       )}
       <InstrumentInfo keyId={keyId} />
+      {targetOpen && quote && <PriceAlertSheet keyId={keyId} name={name} price={quote.price} currency={quote.currency} onClose={() => setTargetOpen(false)} />}
       {explainAt !== null && <ExplainSheet keyId={keyId} bar={bar} time={explainAt.time} to={explainAt.to} pct={explainAt.pct} onClose={() => setExplainAt(null)} />}
 
       <div className="section-head"><h2 className="section-title">AI 타이밍 분석</h2></div>

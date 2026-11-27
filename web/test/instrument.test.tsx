@@ -81,3 +81,11 @@ test('already-favorite instruments show a pressed star', async () => {
   await waitFor(() => expect(screen.getByRole('button', { name: '즐겨찾기' }).getAttribute('aria-pressed')).toBe('true'));
   expect(screen.getByRole('button', { name: '알림 코인' }).getAttribute('aria-pressed')).toBe('true');
 });
+
+test('the stock page opens a price alert starting at the current price', async () => {
+  server('kr:005930', { '/api/price-alerts': () => ({ alerts: [] }) });
+  render(<InstrumentView keyId="kr:005930" onClose={() => {}} onChat={() => {}} />);
+  await userEvent.click(await screen.findByRole('button', { name: '목표가 알림' }));
+  const sheet = await screen.findByRole('dialog', { name: '목표가 알림' });
+  expect((within(sheet).getByLabelText('목표가(원)') as HTMLInputElement).value).toBe('70500');
+});
