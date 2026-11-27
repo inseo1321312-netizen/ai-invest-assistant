@@ -26,6 +26,8 @@ export interface Candle { time: number; open: number; high: number; low: number;
 /** 주식 장 상태. tradedAt은 마지막 체결 시각(unix 초). extended는 프리·애프터마켓(종가 대비 %) */
 export interface MarketSession {
   open: boolean;
+  /** 오늘 장이 아직 안 열림(네이버 PREOPEN): 등락률이 0으로 다시 시작한다 */
+  beforeOpen?: boolean;
   tradedAt: number | null;
   extended: { kind: 'pre' | 'after'; open: boolean; price: number; changePct: number; tradedAt: number | null } | null;
 }

@@ -50,7 +50,7 @@ export function createGptAdapter(opts: {
         return;
       }
     } else if (!opts.siwc.has()) {
-      yield { type: 'error', code: 'auth', message: 'ChatGPT 연결이 필요합니다. 설정에서 안내를 따라 연결하세요' };
+      yield { type: 'error', code: 'auth', message: 'ChatGPT 연결이 필요해요. 설정 → AI 연결에서 연결해 주세요' };
       return;
     }
 

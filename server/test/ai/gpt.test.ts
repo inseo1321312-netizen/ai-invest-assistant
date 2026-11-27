@@ -184,7 +184,7 @@ describe('gpt adapter', () => {
     expect((await collect(a.run(req(), 'gpt-6-luna'))).at(-1)).toEqual({ type: 'error', code: 'auth', message: 'ChatGPT API 키가 없어요. 설정 → AI 연결에서 넣어 주세요' });
     const b = setup({});
     b.siwc.clear();
-    expect((await collect(b.run(req(), 'gpt-6-luna'))).at(-1)).toEqual({ type: 'error', code: 'auth', message: 'ChatGPT 연결이 필요합니다. 설정에서 안내를 따라 연결하세요' });
+    expect((await collect(b.run(req(), 'gpt-6-luna'))).at(-1)).toEqual({ type: 'error', code: 'auth', message: 'ChatGPT 연결이 필요해요. 설정 → AI 연결에서 연결해 주세요' });
   });
 });
 

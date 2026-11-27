@@ -55,7 +55,7 @@ const openOf = (d: Realtime): { open?: boolean } => (d.marketStatus === 'OPEN' ?
 
 /** 네이버가 알려 주는 장 상태(공휴일 포함)와 프리·애프터마켓 가격을 붙인다 */
 function withSession(quote: Quote, d: Realtime): Quote {
-  if (d.marketStatus !== 'OPEN' && d.marketStatus !== 'CLOSE') return quote;
+  if (d.marketStatus !== 'OPEN' && d.marketStatus !== 'CLOSE' && d.marketStatus !== 'PREOPEN') return quote;
   const o = d.overMarketPriceInfo;
   const over = o ? parseKoNumber(o.overPrice) : null;
   const kind = o?.tradingSessionType === 'PRE_MARKET' ? 'pre' : o?.tradingSessionType === 'AFTER_MARKET' ? 'after' : null;
@@ -63,7 +63,7 @@ function withSession(quote: Quote, d: Realtime): Quote {
     ? { kind, open: o.overMarketStatus === 'OPEN', price: over, changePct: ((over - quote.price) / quote.price) * 100, tradedAt: unixOf(o.localTradedAt) } as const
     : null;
   // 네이버는 시간외(NXT 애프터마켓 등)가 열려 있으면 OPEN이라고 한다: 그때 정규장은 닫힌 것으로 본다
-  return { ...quote, session: { open: d.marketStatus === 'OPEN' && !extended?.open, tradedAt: unixOf(d.localTradedAt), extended } };
+  return { ...quote, session: { open: d.marketStatus === 'OPEN' && !extended?.open, ...(d.marketStatus === 'PREOPEN' ? { beforeOpen: true } : {}), tradedAt: unixOf(d.localTradedAt), extended } };
 }
 
 function signedPct(ratio: unknown, code: unknown): number {

@@ -60,7 +60,8 @@ export function registerInfoRoutes(app: FastifyInstance, deps: {
     const p = z.object({ key: keySchema }).safeParse(req.query);
     if (!p.success || !deps.logos) return reply.code(404).send({ error: '로고가 없어요' });
     const logo = await deps.logos.get(p.data.key);
-    if (!logo) return reply.code(404).send({ error: '로고가 없어요' });
+    // 없는 로고도 하루 동안 기억하게 해서 화면이 같은 주소를 계속 다시 묻지 않게
+    if (!logo) return reply.code(404).header('cache-control', 'private, max-age=86400').send({ error: '로고가 없어요' });
     return reply.header('content-type', logo.type).header('cache-control', 'private, max-age=604800').send(logo.body);
   });
 

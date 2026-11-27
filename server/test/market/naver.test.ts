@@ -74,6 +74,12 @@ describe('quotes', () => {
     expect(q.session).toMatchObject({ open: false, extended: { kind: 'after', open: true, price: 178400 } });
   });
 
+  test('before the open Naver says PREOPEN: closed, marked as before the open', async () => {
+    const f = fakeFetch({ '/ac': () => ac('TSLA', 'TSLA.O'), '/api/realtime/worldstock/stock/TSLA.O': () => ({ datas: [{ closePrice: '380.14', fluctuationsRatio: '0.00', compareToPreviousPrice: { code: '3' }, marketStatus: 'PREOPEN', localTradedAt: '2026-11-27T03:57:21-05:00' }] }) });
+    const q = await client(f).getQuote(parseInstrumentKey('us:NAS:TSLA'));
+    expect(q.session).toMatchObject({ open: false, beforeOpen: true, extended: null });
+  });
+
   test('a pre-market price that is not a number is left out', async () => {
     const f = fakeFetch({ '/api/realtime/domestic/stock/005930': () => ({ datas: [{ closePrice: '171,500', marketStatus: 'CLOSE', localTradedAt: 'nonsense', overMarketPriceInfo: { tradingSessionType: 'PRE_MARKET', overMarketStatus: 'OPEN', overPrice: '-' } }] }) });
     expect((await client(f).getQuote(samsung)).session).toEqual({ open: false, tradedAt: null, extended: null });

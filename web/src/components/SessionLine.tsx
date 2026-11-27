@@ -10,7 +10,7 @@ export function SessionLine({ session, currency }: { session: MarketSession; cur
     <div className="session-line">
       <span className="session-main">
         <i className={`session-dot${session.open ? ' live' : ''}`} aria-hidden="true" />
-        {session.open ? '정규장 · 실시간' : '장 마감'}
+        {session.open ? '정규장 · 실시간' : session.beforeOpen ? '개장 전' : '장 마감'}
         {!session.open && !ext?.open && session.tradedAt !== null && <span className="muted"> · 마지막 거래 {formatTimeKst(session.tradedAt).replace('-', '/')}</span>}
       </span>
       {ext && (

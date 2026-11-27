@@ -48,7 +48,7 @@ export function createSiwcTokenStore(opts: { db: Db; fetchImpl?: typeof fetch; n
 
   async function refresh(): Promise<string> {
     const t = load();
-    if (!t) throw new SiwcAuthError('ChatGPT 연결이 필요합니다. 설정에서 안내를 따라 연결하세요');
+    if (!t) throw new SiwcAuthError('ChatGPT 연결이 필요해요. 설정 → AI 연결에서 연결해 주세요');
     const res = await doFetch(SIWC_TOKEN_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },

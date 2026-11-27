@@ -9,6 +9,8 @@ export interface Instrument { market: MarketId; symbol: string; kind: 'spot' | '
 /** 주식 장 상태(네이버 기준, 공휴일 포함). tradedAt은 unix 초, extended는 프리·애프터마켓(종가 대비 %) */
 export interface MarketSession {
   open: boolean;
+  /** 오늘 장이 아직 안 열림 */
+  beforeOpen?: boolean;
   tradedAt: number | null;
   extended: { kind: 'pre' | 'after'; open: boolean; price: number; changePct: number; tradedAt: number | null } | null;
 }

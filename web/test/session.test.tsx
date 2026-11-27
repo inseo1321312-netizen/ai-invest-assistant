@@ -33,3 +33,9 @@ test('a running pre-market is marked live', () => {
   expect(container.textContent).toContain('프리마켓 거래 중');
   expect(container.querySelector('.session-ext .session-dot.live')).not.toBeNull();
 });
+
+test('before the open it says so instead of closed', () => {
+  const { container } = render(<SessionLine session={{ open: false, beforeOpen: true, tradedAt: closeAt, extended: null }} currency="USD" />);
+  expect(container.textContent).toContain('개장 전');
+  expect(container.textContent).not.toContain('장 마감');
+});
