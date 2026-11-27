@@ -71,3 +71,14 @@ export function watchViewport(win: Window = window, doc: Document = document): (
     doc.removeEventListener('focusout', blur);
   };
 }
+
+/**
+ * 앱 화면 확대 막기: 아이폰은 두 손가락으로 벌리면 페이지가 확대된다(gesture 이벤트).
+ * 페이지 확대만 막고 터치는 그대로라 차트의 두 손가락 확대는 계속 된다.
+ */
+export function blockZoom(doc: Document = document): () => void {
+  const stop = (e: Event) => e.preventDefault();
+  const opts = { passive: false } as AddEventListenerOptions;
+  for (const t of ['gesturestart', 'gesturechange', 'gestureend']) doc.addEventListener(t, stop, opts);
+  return () => { for (const t of ['gesturestart', 'gesturechange', 'gestureend']) doc.removeEventListener(t, stop, opts); };
+}

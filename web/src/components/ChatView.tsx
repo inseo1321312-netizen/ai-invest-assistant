@@ -210,7 +210,13 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
   const [currentChat, setCurrentChat] = useState<number | null>(null);
   const chatId = useRef<number | null>(null);
   const aborts = useRef<AbortController[]>([]);
-  const endRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  // 대화 맨 아래를 보고 있을 때만 새 글을 따라 내려간다(위로 올려 읽는 중이면 그대로 둔다)
+  const stick = useRef(true);
+  // 아이폰처럼 손가락으로 쓰는 기기: 줄바꿈 키는 줄바꿈, 보내기는 버튼으로만(한글 입력 중에 저절로 보내지지 않게)
+  const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  /** 대화 칸만 움직인다. scrollIntoView는 화면 전체(키보드 위 보이는 부분)까지 끌어 내려서 쓰지 않는다 */
+  const toEnd = () => { const el = listRef.current; if (el) el.scrollTop = el.scrollHeight; };
   const boxRef = useRef<HTMLTextAreaElement>(null);
 
   // 입력칸은 글 길이만큼 늘린다
@@ -272,7 +278,7 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyId]);
 
-  useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end', behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { if (stick.current) toEnd(); }, [messages]);
 
   const update = (id: number, f: (m: Msg) => Msg) => setMessages((prev) => prev.map((m) => (m.id === id ? f(m) : m)));
   const modelOf = (p: ProviderId) => pref.model[p] ?? null;
@@ -311,6 +317,7 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
     const text = input.trim();
     if (!text) return;
     setInput('');
+    stick.current = true;
     ask(text, pref.provider, true);
   }
 
@@ -345,7 +352,7 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
         </button>
       </div>
 
-      <div className="messages">
+      <div className="messages" ref={listRef} onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120; }}>
         {messages.length === 0 && (
           <div className="chat-empty rise">
             <div className="orb" aria-hidden="true"><Icon.spark /></div>
@@ -376,15 +383,15 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
           </div>
         ))}
         <Disclaimer />
-        <div ref={endRef} />
       </div>
 
       <div className="composer-wrap">
         <Segmented small kind="radio" label="생각 깊이" value={pref.depth} onChange={(depth: Depth) => setAndSave({ ...pref, depth })} options={DEPTHS} />
         <form className="composer" onSubmit={submit}>
           <textarea ref={boxRef} aria-label="메시지" rows={1} value={input} onChange={(e) => setInput(e.target.value)}
-            onFocus={() => setTimeout(() => endRef.current?.scrollIntoView?.({ block: 'end' }), 350)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }}
+            onFocus={() => { if (stick.current) setTimeout(toEnd, 350); }}
+            enterKeyHint={touch ? 'enter' : 'send'}
+            onKeyDown={(e) => { if (!touch && e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }}
             placeholder={`${PROVIDER_LABEL[pref.provider]}에게 물어보기`} />
           {busy
             ? <button className="send-btn stop" type="button" aria-label="멈추기" onClick={stop}><Icon.stop /></button>

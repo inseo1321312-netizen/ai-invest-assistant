@@ -2,7 +2,7 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { Sheet } from '../src/ui';
-import { watchViewport } from '../src/viewport';
+import { blockZoom, watchViewport } from '../src/viewport';
 import { greeting } from '../src/greeting';
 import { ChatView } from '../src/components/ChatView';
 import { mockServer } from './fakeServer';
@@ -121,4 +121,19 @@ test('the chat keeps its own disclaimer and does not stretch the page', () => {
 
 test('Korean lines break between words, not in the middle of one', () => {
   expect(css).toMatch(/body \{ word-break: keep-all; overflow-wrap: break-word; \}/);
+});
+
+test('the app cannot be zoomed: viewport locked, double-tap and pinch zoom blocked', () => {
+  const html = readFileSync('index.html', 'utf8');
+  expect(html).toMatch(/name="viewport" content="[^"]*maximum-scale=1/);
+  expect(html).toMatch(/name="viewport" content="[^"]*user-scalable=no/);
+  expect(css).toMatch(/html \{ touch-action: manipulation; \}/);
+  const stop = blockZoom(document);
+  const pinch = new Event('gesturestart', { cancelable: true });
+  document.dispatchEvent(pinch);
+  expect(pinch.defaultPrevented).toBe(true);
+  stop();
+  const after = new Event('gesturestart', { cancelable: true });
+  document.dispatchEvent(after);
+  expect(after.defaultPrevented).toBe(false);
 });
