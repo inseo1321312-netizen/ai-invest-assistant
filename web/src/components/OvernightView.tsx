@@ -59,7 +59,7 @@ function fromTo(from: number, to: number, currency: Currency): string {
 }
 
 /** 밤사이: 잠든 시각부터 정리 시각까지 시장·내 종목·뉴스를 AI가 정리해 둔 것 */
-export function OvernightView({ onOpen }: { onOpen: (key: string) => void }) {
+export function OvernightView({ onOpen, embedded = false, onSeen }: { onOpen: (key: string) => void; embedded?: boolean; onSeen?: (id: number) => void }) {
   const [view, setView] = useState<View | null>(null);
   const [shown, setShown] = useState<Recap | null>(null);
   const [past, setPast] = useState<Past[]>([]);
@@ -68,7 +68,7 @@ export function OvernightView({ onOpen }: { onOpen: (key: string) => void }) {
 
   const [tries, setTries] = useState(0);
   const load = () => api<View>('/api/overnight')
-    .then((v) => { setView(v); setLoadError(false); if (!v.making) void api<{ items: Past[] }>('/api/overnight/history').then((r) => setPast(r.items)).catch(() => undefined); })
+    .then((v) => { setView(v); setLoadError(false); if (v.recap) onSeen?.(v.recap.id); if (!v.making) void api<{ items: Past[] }>('/api/overnight/history').then((r) => setPast(r.items)).catch(() => undefined); })
     // 한 번 못 읽어도 만드는 중이면 계속 다시 묻는다(화면이 '정리하는 중'에 멈추지 않게)
     .catch(() => { setLoadError(true); setTries((n) => n + 1); });
 
@@ -104,10 +104,10 @@ export function OvernightView({ onOpen }: { onOpen: (key: string) => void }) {
 
   return (
     <div className="screen overnight" role="region" aria-label="밤사이">
-      <header className="topbar">
+      <header className={embedded ? 'on-head' : 'topbar'}>
         <div>
           <p className="topbar-sub">{recap ? rangeText(recap.from, recap.to) : '자는 동안 있었던 일'}</p>
-          <h1>밤사이</h1>
+          {!embedded && <h1>밤사이</h1>}
         </div>
         {settings && (
           <button type="button" className="on-chip" aria-label="정리 설정" onClick={() => setEditing(true)}>

@@ -3,7 +3,8 @@ import { motionOk, navigate } from './motion';
 import { PULL_TRIGGER, useNetwork, usePullToRefresh } from './gestures';
 import { api, ApiError, setUnauthorizedHandler } from './api';
 import { ChatView } from './components/ChatView';
-import { OvernightView } from './components/OvernightView';
+import { CompareView } from './components/CompareView';
+import { OvernightSheet, useOvernightPopup } from './components/OvernightSheet';
 import { NewsTicker } from './components/NewsTicker';
 import { Holdings } from './components/Holdings';
 import { InstrumentView } from './components/InstrumentView';
@@ -22,22 +23,22 @@ import { blockZoom, watchViewport } from './viewport';
 
 export { Disclaimer };
 
-type Tab = 'home' | 'overnight' | 'chat' | 'settings';
+type Tab = 'home' | 'compare' | 'chat' | 'settings';
 
-/** 알림을 눌러 열면(/?tab=overnight) 그 탭으로 시작한다 */
-function startTab(): Tab {
+/** 알림을 눌러 앱을 열었는지(/?tab=overnight): 그러면 밤사이 창부터 띄운다 */
+function openedFromPush(): boolean {
   try {
-    const t = new URLSearchParams(window.location.search).get('tab');
-    if (t === 'overnight') { window.history.replaceState(null, '', window.location.pathname); return t; }
-  } catch { /* 기본 */ }
-  return 'home';
+    if (new URLSearchParams(window.location.search).get('tab') !== 'overnight') return false;
+    window.history.replaceState(null, '', window.location.pathname);
+    return true;
+  } catch { return false; }
 }
 
 function todayLabel(): string {
   return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
 }
 
-function Home({ onOpen }: { onOpen: (key: string) => void }) {
+function Home({ onOpen, onNight }: { onOpen: (key: string) => void; onNight: () => void }) {
   const [tab, setTab] = useState<MarketId>(readSavedTab);
   const [refresh, setRefresh] = useState(0);
   const [spin, setSpin] = useState(false);
@@ -70,8 +71,11 @@ function Home({ onOpen }: { onOpen: (key: string) => void }) {
           <p className="topbar-sub">{todayLabel()}</p>
           <h1 className="greet">{greeting(tab)}</h1>
         </div>
-        <button type="button" className={`icon-btn${spin ? ' spin' : ''}`} aria-label="새로고침" onAnimationEnd={() => setSpin(false)}
+        <div className="head-actions">
+          <button type="button" className="icon-btn" aria-label="밤사이 보기" onClick={onNight}><Icon.moon /></button>
+          <button type="button" className={`icon-btn${spin ? ' spin' : ''}`} aria-label="새로고침" onAnimationEnd={() => setSpin(false)}
           onClick={reload}><Icon.refresh /></button>
+        </div>
       </header>
       <button type="button" className="search-pill" aria-label="종목 검색" onClick={() => setSearching(true)}>
         <Icon.search /><span>종목 검색</span><small>삼성, 애플, 비트…</small>
@@ -98,7 +102,12 @@ function NetworkBar() {
 }
 
 function Shell() {
-  const [tab, setTab] = useState<Tab>(startTab);
+  const [tab, setTab] = useState<Tab>('home');
+  const [night, setNight] = useState(openedFromPush);
+  const [compareSeed, setCompareSeed] = useState<string | null>(null);
+  const [chatDraft, setChatDraft] = useState<{ id: number; text: string } | null>(null);
+  // 아침에 처음 열면 밤사이 정리가 먼저 올라온다
+  useOvernightPopup(() => setNight(true));
   const [, setFxTick] = useState(0);
 
   // 원화 단위로 보여 줄 때 쓸 환율(10분마다)
@@ -125,7 +134,7 @@ function Shell() {
     if (!sw) return;
     const onMsg = (e: MessageEvent) => {
       const d = e.data as { type?: string; url?: string } | null;
-      if (d?.type === 'open' && d.url?.includes('tab=overnight')) navigate('tab', () => { setInstrument(null); setTab('overnight'); });
+      if (d?.type === 'open' && d.url?.includes('tab=overnight')) setNight(true);
     };
     sw.addEventListener('message', onMsg as EventListener);
     return () => sw.removeEventListener('message', onMsg as EventListener);
@@ -143,20 +152,23 @@ function Shell() {
     if (t === tab && !instrument) { window.scrollTo({ top: 0, behavior: motionOk() ? 'smooth' : 'auto' }); return; }
     navigate(instrument && t === tab ? 'back' : 'tab', () => {
       setInstrument(null);
-      if (t === 'chat') setChatKey(null);
+      if (t === 'chat') { setChatKey(null); setChatDraft(null); }
+      if (t === 'compare') setCompareSeed(null);
       setTab(t);
     });
   }
 
   let body;
-  if ((tab === 'home' || tab === 'overnight') && instrument) {
-    body = <InstrumentView key={instrument} keyId={instrument} onClose={() => navigate('back', () => setInstrument(null))} onChat={(k) => navigate('forward', () => { setChatKey(k); setTab('chat'); })} />;
+  if ((tab === 'home' || tab === 'compare') && instrument) {
+    body = <InstrumentView key={instrument} keyId={instrument} onClose={() => navigate('back', () => setInstrument(null))} onChat={(k) => navigate('forward', () => { setChatDraft(null); setChatKey(k); setTab('chat'); })}
+      onCompare={(k) => navigate('tab', () => { setInstrument(null); setCompareSeed(k); setTab('compare'); })} />;
   } else if (tab === 'home') {
-    body = <Home onOpen={open} />;
-  } else if (tab === 'overnight') {
-    body = <OvernightView onOpen={(k) => navigate('forward', () => setInstrument(k))} />;
+    body = <Home onOpen={open} onNight={() => setNight(true)} />;
+  } else if (tab === 'compare') {
+    body = <CompareView key={compareSeed ?? 'none'} seed={compareSeed} onOpen={(k) => navigate('forward', () => setInstrument(k))}
+      onAsk={(text) => navigate('tab', () => { setChatKey(null); setChatDraft({ id: Date.now(), text }); setTab('chat'); })} />;
   } else if (tab === 'chat') {
-    body = <ChatView key={chatKey ?? 'all'} keyId={chatKey} onClose={chatKey ? () => navigate('back', () => { setTab('home'); setInstrument(chatKey); }) : undefined} />;
+    body = <ChatView key={chatKey ?? (chatDraft ? `draft-${chatDraft.id}` : 'all')} keyId={chatKey} draft={chatDraft?.text} onClose={chatKey ? () => navigate('back', () => { setTab('home'); setInstrument(chatKey); }) : undefined} />;
   } else {
     body = <SettingsView />;
   }
@@ -166,12 +178,13 @@ function Shell() {
       <NetworkBar />
       {body}
       {tab !== 'chat' && <Disclaimer />}
-      <nav className="bottom-nav" aria-label="메뉴" style={{ '--i': ['home', 'overnight', 'chat', 'settings'].indexOf(tab) } as CSSProperties}>
+      <nav className="bottom-nav" aria-label="메뉴" style={{ '--i': ['home', 'compare', 'chat', 'settings'].indexOf(tab) } as CSSProperties}>
         <button type="button" aria-current={tab === 'home' ? 'page' : undefined} onClick={() => go('home')}><Icon.home />홈</button>
-        <button type="button" aria-current={tab === 'overnight' ? 'page' : undefined} onClick={() => go('overnight')}><Icon.moon />밤사이</button>
+        <button type="button" aria-current={tab === 'compare' ? 'page' : undefined} onClick={() => go('compare')}><Icon.compare />비교</button>
         <button type="button" aria-current={tab === 'chat' ? 'page' : undefined} onClick={() => go('chat')}><Icon.chat />AI 상담</button>
         <button type="button" aria-current={tab === 'settings' ? 'page' : undefined} onClick={() => go('settings')}><Icon.settings />설정</button>
       </nav>
+      {night && <OvernightSheet onClose={() => setNight(false)} onOpen={(k) => navigate('forward', () => { setTab('home'); setInstrument(k); })} />}
     </div>
   );
 }

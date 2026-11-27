@@ -77,7 +77,7 @@ export function ExplainSheet({ keyId, bar, time, to = null, pct, onClose }: { ke
   );
 }
 
-export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onClose: () => void; onChat: (key: string) => void }) {
+export function InstrumentView({ keyId, onClose, onChat, onCompare }: { keyId: string; onClose: () => void; onChat: (key: string) => void; onCompare?: (key: string) => void }) {
   const isCoin = keyId.startsWith('coin:');
   const isSwap = keyId.endsWith('-SWAP');
   const bars = isCoin ? COIN_BARS : STOCK_BARS;
@@ -233,7 +233,10 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
             <span className={`change num ${changeClass(quote.changePct24h)}`}>{formatPct(quote.changePct24h)}</span>
             <span className="small muted">{isCoin ? '24시간' : '전일 대비'}</span>
             <span className="chip-row">
+              <span className="chip-row">
+              {onCompare && <button type="button" className="target-chip" aria-label="비교에 담기" onClick={() => onCompare(keyId)}><Icon.compare /> 비교</button>}
               <button type="button" className="target-chip" onClick={() => setTargetOpen(true)}><Icon.bell /> 목표가 알림</button>
+            </span>
             </span>
           </div>
         )}

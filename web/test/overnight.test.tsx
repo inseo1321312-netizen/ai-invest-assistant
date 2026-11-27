@@ -47,13 +47,6 @@ function server(view: Record<string, unknown>, extra: Parameters<typeof mockServ
 }
 
 describe('밤사이 tab', () => {
-  test('the menu has a 밤사이 tab', async () => {
-    server({}, { '/api/me': () => ({ loggedIn: true }) });
-    render(<App />);
-    await userEvent.click(await screen.findByRole('button', { name: '밤사이' }));
-    expect(await screen.findByRole('region', { name: '밤사이' })).toBeTruthy();
-  });
-
   test('shows the range, the AI summary, markets, my stocks, news and today, as sketched', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true, now: KST('2026-11-28T08:00:00') });
     server({ recap: recap() });
@@ -198,17 +191,6 @@ describe('review fixes', () => {
     render(<OvernightView onOpen={() => {}} />);
     await screen.findByRole('alert');
     expect(screen.getAllByRole('button', { name: /다시 정리/ })).toHaveLength(1);
-  });
-
-  test('tapping the push while the app is open switches to 밤사이', async () => {
-    const sw = Object.assign(new EventTarget(), { controller: null, getRegistration: async () => undefined });
-    Object.defineProperty(navigator, 'serviceWorker', { value: sw, configurable: true });
-    server({}, { '/api/me': () => ({ loggedIn: true }) });
-    render(<App />);
-    await screen.findByRole('button', { name: '밤사이' });
-    sw.dispatchEvent(new MessageEvent('message', { data: { type: 'open', url: '/?tab=overnight' } }));
-    expect(await screen.findByRole('region', { name: '밤사이' })).toBeTruthy();
-    delete (navigator as { serviceWorker?: unknown }).serviceWorker;
   });
 
   test('pickers keep their arrow and long prices do not squeeze the name', async () => {
