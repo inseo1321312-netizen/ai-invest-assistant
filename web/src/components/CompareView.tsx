@@ -165,12 +165,13 @@ export function CompareView({ seed, onOpen, onAsk }: { seed: string | null; onOp
       </header>
 
       <div className={`vs${picks.length + empties > 2 ? ' grid' : ''}`} role="group" aria-label="비교할 종목">
+        {/* 두 칸일 때 그 사이 한가운데 */}
+        {picks.length + empties === 2 && <span className="vs-badge" aria-hidden="true">VS</span>}
         {picks.map((p, i) => {
           const q = live[p.key];
           const name = p.name ?? short(p.key);
           return (
             <div key={p.key} className="vs-slot" role="group" aria-label={name}>
-              {i === 1 && picks.length + empties === 2 && <span className="vs-badge" aria-hidden="true">VS</span>}
               <button type="button" className="vs-x" aria-label={`${name} 빼기`} onClick={() => remove(p.key)}><Icon.close /></button>
               <Avatar inst={parseKey(p.key, p.name)} logoKey={p.key} />
               <span className="vs-name">{name}</span>
@@ -181,7 +182,6 @@ export function CompareView({ seed, onOpen, onAsk }: { seed: string | null; onOp
         })}
         {Array.from({ length: empties }, (_, i) => (
           <button key={`e${i}`} type="button" className="vs-slot empty" aria-label="종목 담기" onClick={() => setSearching(true)}>
-            {picks.length + i === 1 && <span className="vs-badge" aria-hidden="true">VS</span>}
             <span className="vs-plus" aria-hidden="true"><Icon.plus /></span>
             <span>종목 담기</span>
           </button>

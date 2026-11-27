@@ -175,3 +175,26 @@ describe('review fixes', () => {
     expect(within(card).queryByRole('button', { name: '다른 AI에게도 묻기' })).toBeNull();
   });
 });
+
+describe('VS polish', () => {
+  test('VS sits in the middle between the two slots, not inside one', async () => {
+    picks([SS, HX]);
+    server();
+    render(<CompareView seed={null} onOpen={() => {}} onAsk={() => {}} />);
+    const vs = screen.getByRole('group', { name: '비교할 종목' });
+    const badge = vs.querySelector('.vs-badge')!;
+    expect(badge.parentElement).toBe(vs);
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/styles.css', 'utf8');
+    expect(css).toMatch(/\.vs-badge \{[^}]*left: 50%;[^}]*top: 50%;[^}]*transform: translate\(-50%, -50%\)/);
+  });
+
+  test('a picked slot eases in, prices keep their line height while loading, and reduced motion turns it off', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/styles.css', 'utf8');
+    expect(css).toMatch(/\.vs-slot \{[^}]*animation: vs-in/);
+    expect(css).toMatch(/@keyframes vs-in/);
+    expect(css).toMatch(/\.vs-price \{[^}]*min-height/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^}]*\.vs-slot \{ animation: none/);
+  });
+});

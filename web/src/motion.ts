@@ -31,7 +31,8 @@ export function navigate(kind: NavKind, update: () => void): void {
   const group = kind === 'theme' ? 'theme' : 'nav';
   const id = ++latest[group];
   const doc = document as unknown as VtDoc;
-  if (!doc.startViewTransition || !motionOk()) {
+  // 탭 바꾸기는 화면 전체를 찍지 않고 바로 바꾼다(아래 메뉴의 움직이는 배경이 끊기지 않게). 들어가기·나오기만 미끄러지는 효과
+  if (!doc.startViewTransition || !motionOk() || kind === 'tab') {
     update();
     return;
   }
@@ -49,27 +50,8 @@ export function navigate(kind: NavKind, update: () => void): void {
   }
 }
 
-/** 다크·라이트 전환: 누른 곳에서 원이 퍼지며 새 색이 덮는다. 지원하지 않으면 색이 천천히 바뀐다. */
-export function themeTransition(update: () => void, origin?: { x: number; y: number }): void {
-  const root = document.documentElement;
-  const doc = document as unknown as VtDoc;
-  if (doc.startViewTransition && motionOk()) {
-    const w = typeof innerWidth === 'number' ? innerWidth : 0;
-    const h = typeof innerHeight === 'number' ? innerHeight : 0;
-    const x = origin?.x ?? w / 2;
-    const y = origin?.y ?? h / 2;
-    root.style.setProperty('--vt-x', `${x}px`);
-    root.style.setProperty('--vt-y', `${y}px`);
-    root.style.setProperty('--vt-r', `${Math.ceil(Math.hypot(Math.max(x, w - x), Math.max(y, h - y)))}px`);
-    navigate('theme', update);
-    return;
-  }
-  if (motionOk()) {
-    root.classList.add('theme-fade');
-    update();
-    setTimeout(() => root.classList.remove('theme-fade'), 500);
-    return;
-  }
+/** 다크·라이트 전환: 바로 바꾼다. 화면 전체를 찍어 원으로 덮는 효과나 모든 요소의 색을 천천히 바꾸는 효과는 아이폰에서 끊겨서 쓰지 않는다. */
+export function themeTransition(update: () => void, _origin?: { x: number; y: number }): void {
   update();
 }
 

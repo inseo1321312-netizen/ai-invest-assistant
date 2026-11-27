@@ -42,18 +42,15 @@ test('reduced motion skips the transition', () => {
   expect(update).toHaveBeenCalled();
 });
 
-test('theme reveal grows a circle from the tap point to cover the screen', () => {
+test('light/dark switches at once: no screen snapshot and no all-element color fade (they stutter on iPhone)', () => {
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
-  (document as { startViewTransition?: unknown }).startViewTransition = (cb: () => void) => { cb(); return { finished: Promise.resolve() }; };
-  vi.stubGlobal('innerWidth', 400);
-  vi.stubGlobal('innerHeight', 800);
+  const start = vi.fn((cb: () => void) => { cb(); return { finished: Promise.resolve() }; });
+  (document as { startViewTransition?: unknown }).startViewTransition = start;
   const update = vi.fn();
   themeTransition(update, { x: 100, y: 200 });
-  const s = document.documentElement.style;
-  expect(s.getPropertyValue('--vt-x')).toBe('100px');
-  expect(s.getPropertyValue('--vt-y')).toBe('200px');
-  expect(s.getPropertyValue('--vt-r')).toBe(`${Math.ceil(Math.hypot(300, 600))}px`);
-  expect(update).toHaveBeenCalled();
+  expect(update).toHaveBeenCalledTimes(1);
+  expect(start).not.toHaveBeenCalled();
+  expect(document.documentElement.classList.contains('theme-fade')).toBe(false);
 });
 
 function Show({ v }: { v: number }) {
@@ -72,9 +69,10 @@ test('when taps come quickly, only the last change is applied', () => {
   const queued: (() => void)[] = [];
   (document as { startViewTransition?: unknown }).startViewTransition = (cb: () => void) => { queued.push(cb); return { finished: new Promise(() => {}) }; };
   const applied: string[] = [];
-  navigate('tab', () => applied.push('settings'));
-  navigate('tab', () => applied.push('chat'));
-  navigate('tab', () => applied.push('home'));
+  // 탭 바꾸기는 바로 바뀌므로, 미끄러지는 전환(들어가기·나오기)으로 확인한다
+  navigate('forward', () => applied.push('settings'));
+  navigate('back', () => applied.push('chat'));
+  navigate('forward', () => applied.push('home'));
   // 브라우저가 앞의 전환을 건너뛰며 콜백을 늦게, 순서가 섞여서 부를 수 있다
   queued[2]!(); queued[0]!(); queued[1]!();
   expect(applied).toEqual(['home']);
@@ -86,7 +84,25 @@ test('a quick screen change does not drop a color change', () => {
   (document as { startViewTransition?: unknown }).startViewTransition = (cb: () => void) => { queued.push(cb); return { finished: new Promise(() => {}) }; };
   const applied: string[] = [];
   navigate('theme', () => applied.push('dark'));
-  navigate('tab', () => applied.push('home'));
+  navigate('forward', () => applied.push('home'));
   queued.forEach((q) => q());
   expect(applied).toEqual(['dark', 'home']);
+});
+
+test('switching tabs does not snapshot the page (the menu animates live, without stutter); going into a page still slides', () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false }));
+  const start = vi.fn((cb: () => void) => { cb(); return { finished: Promise.resolve() }; });
+  (document as { startViewTransition?: unknown }).startViewTransition = start;
+  const update = vi.fn();
+  navigate('tab', update);
+  expect(update).toHaveBeenCalledTimes(1);
+  expect(start).not.toHaveBeenCalled();
+  navigate('forward', vi.fn());
+  expect(start).toHaveBeenCalledTimes(1);
+});
+
+test('the menu highlight is ready to move on the GPU', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync('src/styles.css', 'utf8');
+  expect(css).toMatch(/\.bottom-nav::before \{[^}]*will-change: transform/);
 });
