@@ -77,7 +77,7 @@ export interface AppDeps {
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger: false, trustProxy: true, bodyLimit: 1024 * 1024 });
   await registerStatic(app, deps.webDist);
-  app.get('/api/health', async () => ({ ok: true }));
+  app.get('/api/health', async () => ({ ok: true, up: Math.round(process.uptime()) }));
   await registerAuth(app, deps);
   registerMarketRoutes(app, { ...deps, badgeLookup: deps.badgeLookup ?? badgeLookupFor(deps.db) });
   registerAdminRoutes(app, deps);

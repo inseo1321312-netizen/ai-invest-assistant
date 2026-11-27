@@ -146,6 +146,16 @@ describe('push and scheduler', () => {
     expect(jobs.every((j) => j.opts.timezone === 'Asia/Seoul' && j.opts.protect === true)).toBe(true);
     s.stop();
   });
+
+  test('with a keep-awake ping it runs every 10 minutes except 02:00–05:59 KST', () => {
+    const jobs: string[] = [];
+    startScheduler(
+      { briefing: async () => {}, alertPrices: async () => {}, alertEvents: async () => {}, keepAwake: async () => {} },
+      (pattern) => { jobs.push(pattern); return { stop() {} }; },
+    );
+    expect(jobs).toContain('*/10 0-1,6-23 * * *');
+    expect(jobs).toHaveLength(4);
+  });
 });
 
 describe('catch-up when the app opens (server was asleep)', () => {
