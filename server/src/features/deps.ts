@@ -16,7 +16,7 @@ export interface FeatureDeps {
   /** 종목 뉴스(AI 도구) */
   news?: Pick<News, 'search'> | null;
   /** 종목 이름(뉴스 검색어) */
-  instruments?: { nameOf(key: string): string | null } | null;
+  instruments?: { nameOf(key: string): string | null; search?(q: string, limit?: number): Promise<{ key: string; name: string; market: string }[]> } | null;
 }
 
 export function kstDateTime(unixSec: number): string {

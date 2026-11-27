@@ -20,6 +20,7 @@ import { registerStatic } from './static.js';
 import type { ModelCatalog } from './ai/modelCatalog.js';
 import { registerDiagnoseRoutes } from './http/diagnoseRoutes.js';
 import { registerInfoRoutes } from './http/infoRoutes.js';
+import { registerHoldingsRoutes } from './http/holdingsRoutes.js';
 import { registerAlertRoutes } from './http/alertRoutes.js';
 import type { InstrumentCatalog } from './market/catalog.js';
 import type { MarketOverview } from './market/overview.js';
@@ -87,6 +88,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerSettingsRoutes(app, deps);
   registerDiagnoseRoutes(app, deps);
   registerInfoRoutes(app, deps);
+  registerHoldingsRoutes(app, deps);
   registerAlertRoutes(app, deps);
   return app;
 }
