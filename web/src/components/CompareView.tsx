@@ -246,7 +246,7 @@ function ResultCard({ r, nameOf, onOpen, onOther, otherLabel, onAsk, busy }: {
               const y = r.facts[k]?.yearPos ?? null;
               return <td key={k}>{y === null ? '—' : <span className="cmp-year"><i><b style={{ left: `${Math.round(y)}%` }} /></i><span className="num">{Math.round(y)}%</span></span>}</td>;
             })}</tr>
-            <tr><th scope="row">추세</th>{order.map((k) => { const a = r.facts[k]?.aboveMa20; return <td key={k} className={a === true ? 'up' : a === false ? 'down' : ''}>{a === null || a === undefined ? '—' : a ? '20일선 위' : '20일선 아래'}</td>; })}</tr>
+            <tr><th scope="row">20일선</th>{order.map((k) => { const a = r.facts[k]?.aboveMa20; return <td key={k} className={a === true ? 'up' : a === false ? 'down' : ''}>{a === null || a === undefined ? '—' : a ? '위' : '아래'}</td>; })}</tr>
           </tbody>
         </table>
       </div>
