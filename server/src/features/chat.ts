@@ -5,6 +5,7 @@ import { parseInstrumentKey } from '../market/types.js';
 import type { FeatureDeps } from './deps.js';
 import { buildMarketTools } from './tools.js';
 import { buildAgentTools } from './agentTools.js';
+import { buildPriceAlertTools } from './priceAlerts.js';
 
 export type ChatEvent = AiEvent | { type: 'chat'; chatId: number };
 
@@ -40,7 +41,7 @@ export async function* chatTurn(deps: FeatureDeps, args: { chatId: number | null
   const userText = args.key ? `[지금 보고 있는 종목: ${args.key}]\n${args.text}` : args.text;
   for await (const ev of deps.runAi({
     provider: args.provider, tier: args.depth ?? 'standard', purpose: 'interactive', instructions: prompts.CHAT,
-    history, userText, tools: [...buildMarketTools(deps.market, deps), ...buildAgentTools(deps)], webSearch: { maxUses: 3 }, ...(args.model ? { model: args.model } : {}),
+    history, userText, tools: [...buildMarketTools(deps.market, deps), ...buildAgentTools(deps), ...buildPriceAlertTools({ db: deps.db, getQuote: (i) => deps.market.getQuote(i), names: deps.instruments, now: deps.now })], webSearch: { maxUses: 3 }, ...(args.model ? { model: args.model } : {}),
   })) {
     if (ev.type === 'done') insert.run(chatId, 'assistant', ev.text, args.provider, deps.now());
     // 채팅 화면에서 어떤 모델이 답했는지 보여준다

@@ -34,6 +34,7 @@ export const MIGRATIONS: string[] = [
   `CREATE TABLE alert_coins (key TEXT PRIMARY KEY, added_at INTEGER NOT NULL);
    CREATE TABLE seen_events (id TEXT PRIMARY KEY, seen_at INTEGER NOT NULL);`,
   `CREATE TABLE holdings (key TEXT PRIMARY KEY, market TEXT NOT NULL, quantity REAL, avg_price REAL, added_at INTEGER NOT NULL);`,
+  `CREATE TABLE price_alerts (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, op TEXT NOT NULL, price REAL NOT NULL, created_at INTEGER NOT NULL);`,
 ];
 
 export function openDb(file: string): Db {

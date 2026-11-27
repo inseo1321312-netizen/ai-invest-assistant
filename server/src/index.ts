@@ -1,3 +1,4 @@
+import { createPriceAlertMonitor } from './features/priceAlerts.js';
 import { createApiKeys, verifyKey, type KeyProvider } from './ai/apiKeys.js';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -151,9 +152,10 @@ async function main() {
       return reason || null;
     },
   });
+  const priceAlerts = createPriceAlertMonitor({ db, now, getQuote: (i) => market.getQuote(i), push, names: instruments });
   startScheduler({
     briefing: runBriefing,
-    alertPrices: alerts.tickPrices,
+    alertPrices: async () => { await alerts.tickPrices(); await priceAlerts.tick(); },
     alertEvents: alerts.tickEvents,
     // Render에서는 공개 주소가 있다: 그 주소로 자기를 불러 깨어 있는다
     keepAwake: config.publicUrl ? createKeepAwake({ fetch, url: config.publicUrl }) : undefined,
