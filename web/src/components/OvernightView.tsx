@@ -6,11 +6,11 @@ import { Dots, Icon, Sheet } from '../ui';
 import { Avatar } from './rows';
 
 interface Settings { sleep: string; wake: string; notify: boolean }
-interface ItemFacts { key: string; name: string | null; market: MarketId; price: number | null; fromPrice: number | null; currency: Currency | null; pct: number | null; kind: 'night' | 'session' | 'closed'; extended: { price: number; changePct: number } | null }
+interface ItemFacts { key: string; name: string | null; market: MarketId; price: number | null; fromPrice: number | null; currency: Currency | null; pct: number | null; kind: 'night' | 'session' | 'today' | 'closed'; extended: { price: number; changePct: number } | null }
 interface Facts {
   market: {
-    spx: { value: number; changePct: number | null } | null;
-    nasdaq: { value: number; changePct: number | null } | null;
+    spx: { value: number; changePct: number | null; traded?: boolean | null } | null;
+    nasdaq: { value: number; changePct: number | null; traded?: boolean | null } | null;
     btc: { from: number; to: number; pct: number; high: number; low: number } | null;
     usdkrw: number | null;
     kimchi: number | null;
@@ -66,18 +66,27 @@ export function OvernightView({ onOpen }: { onOpen: (key: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
+  const [tries, setTries] = useState(0);
   const load = () => api<View>('/api/overnight')
     .then((v) => { setView(v); setLoadError(false); if (!v.making) void api<{ items: Past[] }>('/api/overnight/history').then((r) => setPast(r.items)).catch(() => undefined); })
-    .catch(() => setLoadError(true));
+    // 한 번 못 읽어도 만드는 중이면 계속 다시 묻는다(화면이 '정리하는 중'에 멈추지 않게)
+    .catch(() => { setLoadError(true); setTries((n) => n + 1); });
 
   useEffect(() => { void load(); }, []);
+
+  // 앱으로 돌아오면 다시 읽는다(그사이 정리 시각이 지났으면 오늘 정리가 만들어진다)
+  useEffect(() => {
+    const back = () => { if (document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', back);
+    return () => document.removeEventListener('visibilitychange', back);
+  }, []);
 
   // 만드는 중이면 5초마다 다시 읽는다
   useEffect(() => {
     if (!view?.making) return;
     const t = setTimeout(() => void load(), 5000);
     return () => clearTimeout(t);
-  }, [view]);
+  }, [view, tries]);
 
   async function rerun() {
     setShown(null);
@@ -108,7 +117,7 @@ export function OvernightView({ onOpen }: { onOpen: (key: string) => void }) {
       </header>
 
       {!view && !loadError && <div className="on-sk" aria-hidden="true"><span className="skeleton" /><span className="skeleton" /><span className="skeleton" /></div>}
-      {loadError && <p className="error on-pad" role="alert">불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
+      {loadError && !view?.making && <p className="error on-pad" role="alert">불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
 
       {view?.making && <p className="status on-pad" aria-live="polite"><Dots /> 정리하는 중… 30초쯤 걸려요</p>}
       {view && !view.making && view.error && !shown && (
@@ -127,10 +136,10 @@ export function OvernightView({ onOpen }: { onOpen: (key: string) => void }) {
 
       {recap && <RecapBody r={recap} onOpen={onOpen} />}
 
-      {recap && view && !view.making && (
+      {recap && view && !view.making && !(view.error && !shown) && (
         <div className="on-pad on-again">
           <button type="button" className="btn btn-block" onClick={() => void rerun()}><Icon.refresh /> 다시 정리</button>
-          <p className="hint">{shown ? '지난 정리를 보고 있어요' : `${rangeText(recap.from, recap.to).split(' ~ ')[0]}부터 지금까지 새로 정리해요`}</p>
+          <p className="hint">{shown ? '지난 정리를 보고 있어요' : '마지막으로 잠든 시각부터 지금까지 새로 정리해요'}</p>
         </div>
       )}
 
@@ -178,6 +187,7 @@ function RecapBody({ r, onOpen }: { r: Recap; onOpen: (key: string) => void }) {
         <div className="on-market">
           <div className="on-cell"><span>S&amp;P500</span><b className="num">{m.spx ? m.spx.value.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '—'}</b><em className={`num ${changeClass(m.spx?.changePct)}`}>{signed(m.spx?.changePct, 2)}</em></div>
           <div className="on-cell"><span>나스닥</span><b className="num">{m.nasdaq ? m.nasdaq.value.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '—'}</b><em className={`num ${changeClass(m.nasdaq?.changePct)}`}>{signed(m.nasdaq?.changePct, 2)}</em></div>
+          {m.spx?.traded === false && <p className="on-closed">미국장 휴장 · 마지막 거래 기준이에요</p>}
           <div className="on-cell wide">
             <span>비트코인 밤사이</span>
             {m.btc ? <>
@@ -219,10 +229,10 @@ function RecapBody({ r, onOpen }: { r: Recap; onOpen: (key: string) => void }) {
                   </span>
                   <span className="on-item-move">
                     {it.kind === 'closed' || it.price === null || !it.currency
-                      ? <small>{it.kind === 'closed' ? '밤엔 거래 없음' : '—'}</small>
+                      ? <small>{it.kind === 'closed' ? (it.market === 'us' ? '미국장 휴장' : '밤엔 거래 없음') : '—'}</small>
                       : <>
                         <span className="num">{it.fromPrice !== null ? fromTo(it.fromPrice, it.price, it.currency) : formatPrice(it.price, it.currency)}</span>
-                        <b className={`num ${changeClass(it.pct)}`}>{signed(it.pct)}</b>
+                        <b className={`num ${changeClass(it.pct)}`}>{it.kind === 'today' && <small className="on-live">장중 </small>}{signed(it.pct)}</b>
                         {it.extended && <small className="num">시간외 {formatPrice(it.extended.price, it.currency)} {signed(it.extended.changePct)}</small>}
                       </>}
                   </span>

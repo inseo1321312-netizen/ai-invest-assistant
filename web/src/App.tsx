@@ -18,7 +18,7 @@ import type { MarketId, OverviewItem } from './types';
 import { setUsdKrw } from './format';
 import { Disclaimer, Icon } from './ui';
 import { greeting } from './greeting';
-import { watchViewport } from './viewport';
+import { blockZoom, watchViewport } from './viewport';
 
 export { Disclaimer };
 
@@ -117,6 +117,19 @@ function Shell() {
 
   // 키보드가 가린 만큼을 CSS에 알린다(입력창·시트가 키보드 위에 붙게)
   useEffect(() => watchViewport(), []);
+  useEffect(() => blockZoom(), []);
+
+  // 앱이 열려 있을 때 알림을 누르면 서비스 워커가 주소를 알려 준다(/?tab=overnight)
+  useEffect(() => {
+    const sw = navigator.serviceWorker;
+    if (!sw) return;
+    const onMsg = (e: MessageEvent) => {
+      const d = e.data as { type?: string; url?: string } | null;
+      if (d?.type === 'open' && d.url?.includes('tab=overnight')) navigate('tab', () => { setInstrument(null); setTab('overnight'); });
+    };
+    sw.addEventListener('message', onMsg as EventListener);
+    return () => sw.removeEventListener('message', onMsg as EventListener);
+  }, []);
 
   // 화면이 바뀌면 맨 위부터(전환 효과가 새 화면을 찍기 전에 올린다)
   useLayoutEffect(() => {

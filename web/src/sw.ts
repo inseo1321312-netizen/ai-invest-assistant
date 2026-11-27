@@ -28,6 +28,8 @@ self.addEventListener('notificationclick', (event) => {
     const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const client = list[0];
     if (client) {
+      // 열려 있는 앱에 어느 화면을 열지 알려 주고 앞으로 가져온다
+      client.postMessage({ type: 'open', url });
       await client.focus();
       return;
     }

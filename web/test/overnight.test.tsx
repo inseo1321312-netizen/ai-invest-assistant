@@ -149,3 +149,72 @@ describe('밤사이 tab', () => {
     expect(await screen.findByRole('heading', { name: '어제 정리 제목' })).toBeTruthy();
   });
 });
+
+describe('review fixes', () => {
+  test('coming back to the app re-reads the recap (and so makes today’s if it is due)', async () => {
+    const s = server({ recap: recap() });
+    render(<OvernightView onOpen={() => {}} />);
+    await screen.findByRole('region', { name: 'AI 정리' });
+    const before = s.calls.filter((c) => c.url.pathname === '/api/overnight').length;
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await waitFor(() => expect(s.calls.filter((c) => c.url.pathname === '/api/overnight').length).toBe(before + 1));
+  });
+
+  test('a failed check while making keeps checking instead of freezing', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let n = 0;
+    server({}, { '/api/overnight': () => {
+      n++;
+      if (n === 1) return { recap: null, settings: SETTINGS, making: true, error: null, ...TIMES };
+      if (n === 2) return new Response('{}', { status: 502 });
+      return { recap: recap(), settings: SETTINGS, making: false, error: null, ...TIMES };
+    } });
+    render(<OvernightView onOpen={() => {}} />);
+    expect(await screen.findByText(/정리하는 중/)).toBeTruthy();
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    expect(await screen.findByText('나스닥 +1.2% 마감, 비트코인은 밤새 -2.9%')).toBeTruthy();
+  });
+
+  test('a Korean stock trading now shows today’s move; a US stock with no session says the market was closed', async () => {
+    const r = recap();
+    r.facts.items = [
+      { key: SS, name: '삼성전자', market: 'kr', price: 181000, fromPrice: 179500, currency: 'KRW', pct: 0.84, kind: 'today', extended: null },
+      { key: AAPL, name: '애플', market: 'us', price: 361.2, fromPrice: null, currency: 'USD', pct: 1.72, kind: 'closed', extended: null },
+    ] as never;
+    (r.facts.market.spx as Record<string, unknown>).traded = false;
+    server({ recap: r });
+    render(<OvernightView onOpen={() => {}} />);
+    const mine = await screen.findByRole('region', { name: '내 종목 밤사이' });
+    expect(mine.textContent).toContain('장중');
+    expect(mine.textContent).toContain('179,500 → 181,000원');
+    expect(mine.textContent).toContain('미국장 휴장');
+    expect(screen.getByRole('region', { name: '시장' }).textContent).toContain('미국장 휴장');
+  });
+
+  test('an error next to an older recap shows one 다시 정리, not two', async () => {
+    server({ recap: recap(), error: '밤사이 정리를 만들지 못했어요' });
+    render(<OvernightView onOpen={() => {}} />);
+    await screen.findByRole('alert');
+    expect(screen.getAllByRole('button', { name: /다시 정리/ })).toHaveLength(1);
+  });
+
+  test('tapping the push while the app is open switches to 밤사이', async () => {
+    const sw = Object.assign(new EventTarget(), { controller: null, getRegistration: async () => undefined });
+    Object.defineProperty(navigator, 'serviceWorker', { value: sw, configurable: true });
+    server({}, { '/api/me': () => ({ loggedIn: true }) });
+    render(<App />);
+    await screen.findByRole('button', { name: '밤사이' });
+    sw.dispatchEvent(new MessageEvent('message', { data: { type: 'open', url: '/?tab=overnight' } }));
+    expect(await screen.findByRole('region', { name: '밤사이' })).toBeTruthy();
+    delete (navigator as { serviceWorker?: unknown }).serviceWorker;
+  });
+
+  test('pickers keep their arrow and long prices do not squeeze the name', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/styles.css', 'utf8');
+    expect(css).not.toMatch(/\.field select \{ appearance: none/);
+    expect(css).toMatch(/\.on-item-move \{[^}]*max-width: 48%/);
+  });
+});
