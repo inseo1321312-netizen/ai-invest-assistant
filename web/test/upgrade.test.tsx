@@ -85,22 +85,15 @@ describe('instrument upgrade', () => {
 });
 
 describe('shell', () => {
-  test('ticker item opens a detail sheet; bottom nav switches to chat', async () => {
+  test('bottom nav switches to chat', async () => {
     mockServer({
       '/api/me': () => ({ loggedIn: true }),
-      '/api/feed': () => ({ items: [{ id: 1, createdAt: 1, day: 'd', kind: 'breaking', market: 'coin', key: 'coin:BTC-USDT', title: '비트코인 급락', body: 'ETF 자금 유출', isBreaking: true }] }),
       '/api/market/coin/overview': () => overview(),
       '/api/ai/models': () => MODELS, '/api/usage': () => USAGE, '/api/chats': () => ({ chats: [] }),
     });
     localStorage.setItem('tab', 'coin');
     render(<App />);
-    const banner = await screen.findByRole('region', { name: '오늘의 소식' });
-    await userEvent.click(await within(banner).findByRole('button', { name: /비트코인 급락/ }));
-    const sheet = await screen.findByRole('dialog', { name: '[속보]' });
-    expect(within(sheet).getByText('ETF 자금 유출')).toBeTruthy();
-    expect(within(sheet).getByRole('button', { name: '차트와 AI 분석 보기' })).toBeTruthy();
-    await userEvent.click(within(sheet).getByRole('button', { name: '닫기' }));
-    await userEvent.click(screen.getByRole('button', { name: /AI 상담/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /AI 상담/ }));
     expect(await screen.findByRole('region', { name: 'AI 채팅' })).toBeTruthy();
   });
 });

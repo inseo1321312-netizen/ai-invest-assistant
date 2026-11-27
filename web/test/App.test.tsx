@@ -55,14 +55,12 @@ describe('app shell', () => {
     expect(await screen.findByText('비밀번호가 틀렸습니다')).toBeTruthy();
   });
 
-  test('breaking feed item shows [속보] first', async () => {
-    loggedIn();
+  test('home shows today news for favorites and holdings, linking to the article', async () => {
+    loggedIn({ '/api/news/mine': () => ({ items: [{ key: 'coin:BTC-USDT', name: '비트코인', title: '비트코인 4% 급락', url: 'https://news.example/btc', source: 'A', publishedAt: 1 }] }) });
     render(<App />);
-    const banner = await screen.findByRole('region', { name: '오늘의 소식' });
-    const items = await within(banner).findAllByRole('listitem');
-    expect(items[0]!.textContent).toContain('[속보]');
-    expect(items[0]!.textContent).toContain('비트코인 4% 급락');
-    expect(items[1]!.textContent).not.toContain('[속보]');
+    const strip = await screen.findByRole('region', { name: '오늘 소식' });
+    const link = await within(strip).findByRole('link', { name: /비트코인 4% 급락/ });
+    expect(link.getAttribute('href')).toBe('https://news.example/btc');
   });
 
   test('favorite row shows the Korean name, price, change and AI badge', async () => {

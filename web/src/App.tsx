@@ -3,7 +3,8 @@ import { motionOk, navigate } from './motion';
 import { PULL_TRIGGER, useNetwork, usePullToRefresh } from './gestures';
 import { api, ApiError, setUnauthorizedHandler } from './api';
 import { ChatView } from './components/ChatView';
-import { FeedBanner } from './components/FeedBanner';
+import { NewsTicker } from './components/NewsTicker';
+import { Holdings } from './components/Holdings';
 import { InstrumentView } from './components/InstrumentView';
 import { LoginView } from './components/LoginView';
 import { MarketOverview } from './components/MarketOverview';
@@ -74,9 +75,10 @@ function Home({ onOpen }: { onOpen: (key: string) => void }) {
         <Icon.search /><span>종목 검색</span><small>삼성, 애플, 비트…</small>
       </button>
       <MarketOverview key={`ov-${refresh}`} />
-      <FeedBanner refreshKey={refresh} onOpenKey={onOpen} />
+      <NewsTicker refreshKey={refresh} />
       <MarketTabs value={tab} onChange={changeTab} />
       <Trending key={`tr-${tab}-${refresh}`} market={tab} onOpen={onOpen} />
+      <Holdings key={`hd-${refresh}`} market={tab} onOpen={onOpen} />
       <WatchList key={`wl-${tab}-${refresh}`} market={tab} onOpen={onOpen} />
       {searching && <SearchSheet onOpen={onOpen} onClose={() => setSearching(false)} />}
     </div>
