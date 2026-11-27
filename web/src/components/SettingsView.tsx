@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError, post } from '../api';
-import { formatDateTimeKst } from '../format';
 import { useToast, usd } from '../ui';
 import { AlertSettings } from './AlertSettings';
-import { ChatgptConnect } from './ChatgptConnect';
+import { AiConnect, type KeyInfo } from './AiConnect';
 import { AboutSettings, DataSettings, DisplaySettings } from './MoreSettings';
 
 const MENU: [string, string][] = [['set-display', '화면'], ['set-ai', 'AI'], ['set-alerts', '알림'], ['set-check', '연결 점검'], ['set-data', '데이터'], ['set-about', '앱 정보']];
@@ -13,13 +12,14 @@ interface Settings {
   gptMode: 'siwc' | 'apikey';
   budget: { scheduledDailyUsd: number; interactiveDailyUsd: number; monthlyUsd: number; gptMonthlyUsd: number };
   keys: { claude: boolean; openai: boolean; kis: boolean; push: boolean };
+  apiKeys?: { claude: KeyInfo; openai: KeyInfo };
 }
 interface Usage { today: { interactive: number; scheduled: number }; month: number; gptMonth: number; requests?: { gpt5h: number; gptToday: number } }
 type BudgetKey = keyof Settings['budget'];
 
 const TIER_LABEL = { light: '가벼운', standard: '기본', deep: '심층' } as const;
 const BUDGET_FIELDS: [BudgetKey, string][] = [
-  ['interactiveDailyUsd', '하루 직접 사용'], ['scheduledDailyUsd', '하루 예약 작업'], ['monthlyUsd', '한 달 전체'], ['gptMonthlyUsd', '한 달 GPT 종량제'],
+  ['interactiveDailyUsd', '하루 직접 사용'], ['scheduledDailyUsd', '하루 예약 작업'], ['monthlyUsd', '한 달 전체'], ['gptMonthlyUsd', '한 달 ChatGPT API'],
 ];
 
 function isStandalone(): boolean {
@@ -121,19 +121,12 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
     }
   }
 
-  async function disconnectChatgpt() {
-    await api('/api/admin/siwc-tokens', { method: 'DELETE' }).catch(() => undefined);
-    setSiwc({ connected: false, expiresAt: null });
-    showToast('ChatGPT 연결을 끊었어요');
-  }
-
   async function logout() {
     await post('/api/logout', {}).catch(() => undefined);
     location.reload();
   }
 
   const setModel = (p: 'claude' | 'gpt', t: 'light' | 'standard' | 'deep', v: string) => s && setS({ ...s, models: { ...s.models, [p]: { ...s.models[p], [t]: v } } });
-  const loginCmd = `npm run siwc:login -w server -- --server ${typeof location !== 'undefined' ? location.origin : ''}`;
 
   return (
     <div className="screen settings" role="region" aria-label="설정">
@@ -156,36 +149,11 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
           <UsageBar label="오늘 직접 사용" used={usage.today.interactive} limit={s.budget.interactiveDailyUsd} />
           <UsageBar label="오늘 예약 작업" used={usage.today.scheduled} limit={s.budget.scheduledDailyUsd} />
           <UsageBar label="이번 달" used={usage.month} limit={s.budget.monthlyUsd} />
-          <p className="small muted">ChatGPT 최근 5시간 {usage.requests?.gpt5h ?? 0}회, 오늘 {usage.requests?.gptToday ?? 0}회. Claude는 구독에 포함된 API 크레딧에서 나가요.</p>
+          <div className="kv num"><span>ChatGPT 요청</span><span>5시간 {usage.requests?.gpt5h ?? 0}회 · 오늘 {usage.requests?.gptToday ?? 0}회</span></div>
         </section>
       )}
 
-      {s && (
-        <section className="panel">
-          <h2>AI 연결</h2>
-          <p><span className={`status-dot${s.keys.claude ? ' on' : ''}`} />Claude {s.keys.claude ? '연결됨' : '— 서버에 Claude 키가 없어요'}</p>
-          <label className="field">
-            GPT 연결 방식
-            <select aria-label="GPT 연결 방식" value={s.gptMode} onChange={(e) => setS({ ...s, gptMode: e.target.value as Settings['gptMode'] })}>
-              <option value="siwc">ChatGPT Plus 구독</option>
-              <option value="apikey">OpenAI 종량제(비상용)</option>
-            </select>
-          </label>
-          {s.gptMode === 'siwc' && (
-            <div className="small">
-              <p><span className={`status-dot${siwc?.connected ? ' on' : ''}`} />ChatGPT {siwc?.connected ? `연결됨${siwc.expiresAt ? ` (토큰 갱신 예정 ${formatDateTimeKst(Math.floor(siwc.expiresAt / 1000))})` : ''}` : '연결 안 됨'}</p>
-              {!siwc?.connected && <ChatgptConnect onConnected={loadSiwc} />}
-              {siwc?.connected && <button type="button" className="btn" onClick={disconnectChatgpt}>ChatGPT 연결 끊기</button>}
-              <details style={{ marginTop: 10 }}>
-                <summary className="muted" style={{ cursor: 'pointer' }}>PC로 연결하기</summary>
-                <p className="muted">PC에서 이 앱 코드 폴더를 열고 아래 명령을 실행해도 돼요.</p>
-                <pre className="cmd">{loginCmd}</pre>
-              </details>
-            </div>
-          )}
-          {s.gptMode === 'apikey' && !s.keys.openai && <p className="notice" style={{ margin: '8px 0 0' }}>서버에 OpenAI 키가 없어 종량제 방식을 쓸 수 없어요</p>}
-        </section>
-      )}
+      {s && <AiConnect settings={s} siwc={siwc} onSettings={(v) => setS({ ...s, ...v })} onSiwcChange={loadSiwc} />}
 
       {s && budgetText && (
         <section className="panel">
@@ -211,7 +179,6 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
 
       <section className="panel" id="set-check">
         <h2>연결 점검</h2>
-        <p className="small muted" style={{ marginTop: 0 }}>거래소·증권사·AI·데이터 저장이 제대로 연결됐는지 확인해요.</p>
         <button type="button" className="btn btn-block" disabled={diagBusy} onClick={runDiagnose}>{diagBusy ? '점검 중…' : '연결 점검'}</button>
         {diag && (
           <ul className="diag" aria-label="연결 점검 결과">
@@ -226,18 +193,11 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
 
       <section className="panel">
         <h2>알림과 브리핑</h2>
-        {!isStandalone() && <p className="small muted">아이폰은 Safari 공유 버튼에서 홈 화면에 추가한 뒤에만 알림을 받을 수 있어요.</p>}
+        {!isStandalone() && <p className="small muted">홈 화면에 추가한 앱에서만 알림을 받을 수 있어요.</p>}
         <div className="actions">
           <button type="button" className="btn" onClick={enablePush}>알림 켜기</button>
           <button type="button" className="btn" onClick={runBriefing}>지금 브리핑 만들기</button>
         </div>
-        {s && (
-          <div style={{ marginTop: 10 }} className="small">
-            <p><span className="status-dot on" />코인 시세(OKX·업비트) 키 없이 연결</p>
-            <p><span className="status-dot on" />주식 시세 {s.keys.kis ? '한국투자증권(안 되면 네이버 증권)' : '네이버 증권(키 없이 연결)'}</p>
-            <p><span className={`status-dot${s.keys.push ? ' on' : ''}`} />알림 키 {s.keys.push ? '있음' : '없음'}</p>
-          </div>
-        )}
       </section>
 
       <DataSettings />

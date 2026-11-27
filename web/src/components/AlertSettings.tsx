@@ -53,8 +53,7 @@ export function AlertSettings() {
   return (
     <section className="panel" aria-label="알림 코인">
       <h2>알림 코인</h2>
-      <p className="small muted" style={{ marginTop: 0 }}>코인 화면의 🔔을 누르면 여기에 추가돼요. 급변이나 상장폐지·입출금 중단·업비트 유의 지정·대규모 청산 같은 사건이 생기면 알려 드려요. 새벽 2시~6시에는 알림을 보내지 않아요.</p>
-      {coins && coins.length === 0 && <p className="small muted">아직 알림 코인이 없어요.</p>}
+      {coins && coins.length === 0 && <p className="small muted">코인 화면에서 🔔을 누르면 여기에 추가돼요.</p>}
       {coins && coins.length > 0 && (
         <ul className="chip-list">
           {coins.map((k) => (

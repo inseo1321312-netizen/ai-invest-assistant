@@ -25,9 +25,6 @@ export function DisplaySettings() {
       <Segmented small kind="radio" label="상승 하락 색" value={p.updown} onChange={(updown: UpDown) => update({ ...p, updown })}
         options={[{ value: 'kr', label: '빨강 상승' }, { value: 'global', label: '초록 상승' }]} />
       </div>
-      <p className="small muted" style={{ marginBottom: 0 }}>
-        {p.updown === 'kr' ? '한국식: 오르면 빨강, 내리면 파랑' : '해외식: 오르면 초록, 내리면 빨강'}
-      </p>
     </section>
   );
 }
@@ -63,7 +60,6 @@ export function DataSettings() {
         <button type="button" className="set-row" onClick={clearChats}>대화 기록 모두 지우기</button>
         <button type="button" className="set-row" onClick={reloadLatest}>최신 버전 받기</button>
       </div>
-      <p className="small muted" style={{ marginBottom: 0 }}>새 버전이 올라왔는데 화면이 그대로면 "최신 버전 받기"를 누르세요.</p>
       {toast}
     </section>
   );
@@ -77,7 +73,6 @@ export function AboutSettings() {
       <h2>앱 정보</h2>
       <div className="kv"><span>서버 주소</span><span className="num" style={{ wordBreak: 'break-all', textAlign: 'right' }}>{typeof location !== 'undefined' ? location.host : ''}</span></div>
       {built && <div className="kv"><span>화면 버전</span><span className="num">{built}</span></div>}
-      <p className="small muted" style={{ marginBottom: 0 }}>보기 전용 앱이에요. 주문 기능은 없어요. 투자 판단과 책임은 본인에게 있어요.</p>
     </section>
   );
 }

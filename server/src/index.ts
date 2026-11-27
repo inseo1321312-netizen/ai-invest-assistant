@@ -1,3 +1,4 @@
+import { createApiKeys, verifyKey, type KeyProvider } from './ai/apiKeys.js';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import pg from 'pg';
@@ -87,23 +88,33 @@ async function main() {
   const overview = createMarketOverview({ kis: stocks, fx: () => getUsdKrw({ db, now }), sentiment, upbit, okx, now });
   const siwc = createSiwcTokenStore({ db, now });
   const budget = createBudget(db, now);
-  const anthropic = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey, maxRetries: 0 }) : null;
-  const claude: AiAdapter = anthropic
-    ? createClaudeAdapter({ client: anthropic, budget })
-    : async function* () { yield { type: 'error', code: 'auth', message: 'Claude API 키(ANTHROPIC_API_KEY)가 설정되지 않았습니다' } as const; };
+  const keys = createApiKeys({ db, secret: config.sessionSecret, env: { claude: config.anthropicApiKey, openai: config.openaiApiKey } });
+  let anthropicFor: { key: string; client: Anthropic } | null = null;
+  const anthropicClient = (): Anthropic | null => {
+    const key = keys.get('claude');
+    if (!key) return null;
+    if (anthropicFor?.key !== key) anthropicFor = { key, client: new Anthropic({ apiKey: key, maxRetries: 0 }) };
+    return anthropicFor.client;
+  };
+  const claude: AiAdapter = (req, model) => {
+    const client = anthropicClient();
+    if (client) return createClaudeAdapter({ client, budget })(req, model);
+    return (async function* () { yield { type: 'error', code: 'auth', message: 'Claude API 키가 없어요. 설정 → AI 연결에서 넣어 주세요' } as const; })();
+  };
   let router: ReturnType<typeof createAiRouter>;
-  const gpt = createGptAdapter({ mode: () => router.gptMode(), siwc, apiKey: config.openaiApiKey, budget });
+  const gpt = createGptAdapter({ mode: () => router.gptMode(), siwc, apiKey: () => keys.get('openai'), budget });
   router = createAiRouter({ claude, gpt, db });
   const catalog = createModelCatalog({
     now,
     async listClaude() {
+      const anthropic = anthropicClient();
       if (!anthropic) throw new Error('no key');
       const out: { id: string; label: string }[] = [];
       for await (const m of anthropic.models.list()) out.push({ id: m.id, label: m.display_name ?? m.id });
       return out.slice(0, 12);
     },
     async listGpt() {
-      const bearer = router.gptMode() === 'apikey' ? config.openaiApiKey : siwc.has() ? await siwc.getAccessToken() : null;
+      const bearer = router.gptMode() === 'apikey' ? keys.get('openai') : siwc.has() ? await siwc.getAccessToken() : null;
       if (!bearer) throw new Error('not connected');
       return fetchGptModels(bearer);
     },
@@ -112,11 +123,16 @@ async function main() {
   const featureDeps = { db, market, runAi: router.runAi, now, push, trending, news, instruments };
   const runBriefing = () => runMorningBriefing(featureDeps);
   const catchUp = () => ensureCatchUp(featureDeps);
-  const checkClaude = anthropic ? async () => { await anthropic.models.list({ limit: 1 }); } : null;
+  const checkClaude = async () => {
+    const c = anthropicClient();
+    if (!c) return false;
+    await c.models.list({ limit: 1 });
+    return true;
+  };
 
   const app = await buildApp({
     config, db, now, market, connected: { kis: config.kis !== null }, siwc, runAi: router.runAi,
-    push, runBriefing, catchUp, settings: { router, budget }, catalog, persistence, checkClaude,
+    push, runBriefing, catchUp, settings: { router, budget, keys, verifyKey: (p: KeyProvider, key: string) => verifyKey(p, key) }, catalog, persistence, checkClaude,
     sentiment,
     instruments, trending, overview, news, instrumentInfo, upbit,
     stocksAvailable: true, naver, kis: config.kis ? kis : null, logos,

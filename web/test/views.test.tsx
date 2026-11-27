@@ -175,6 +175,7 @@ const SETTINGS = {
   models: { claude: { light: 'claude-haiku-5-5', standard: 'claude-sonnet-5-5', deep: 'claude-opus-5-5' }, gpt: { light: 'gpt-6-luna', standard: 'gpt-6.1-sol', deep: 'gpt-6.2-sol' } },
   gptMode: 'siwc', budget: { scheduledDailyUsd: 1.5, interactiveDailyUsd: 3, monthlyUsd: 80, gptMonthlyUsd: 5 },
   keys: { claude: true, openai: false, okx: true, kis: true, push: true },
+  apiKeys: { claude: { set: true, source: 'server', tail: 'AbCd' }, openai: { set: false, source: null, tail: null } },
 };
 
 describe('settings', () => {
@@ -188,28 +189,27 @@ describe('settings', () => {
     });
   }
 
-  test('settings never renders secret fields', async () => {
+  test('a saved key is never shown, only its last 4 characters; the key box starts empty', async () => {
     settingsServer();
-    const { container } = render(<SettingsView onClose={() => {}} />);
-    await screen.findByText(/이번 달/);
-    expect(container.querySelector('input[type=password]')).toBeNull();
-    expect(screen.queryByLabelText(/API 키/)).toBeNull();
+    render(<SettingsView onClose={() => {}} />);
+    expect(await screen.findByText(/연결됨 · 키 …AbCd \(서버 설정\)/)).toBeTruthy();
+    const box = screen.getByLabelText('Claude API 키') as HTMLInputElement;
+    expect(box.type).toBe('password');
+    expect(box.value).toBe('');
   });
 
-  test('shows usage, ChatGPT login command, and saves gpt mode', async () => {
+  test('shows usage and saves limits', async () => {
     const s = settingsServer();
     render(<SettingsView onClose={() => {}} />);
     expect(await screen.findByText(/\$3\.20/)).toBeTruthy();
-    expect(screen.getByText(/npm run siwc:login -w server -- --server/)).toBeTruthy();
-    await userEvent.selectOptions(screen.getByLabelText('GPT 연결 방식'), 'apikey');
     await userEvent.click(screen.getByRole('button', { name: '설정 저장' }));
-    await waitFor(() => expect(s.calls.find((c) => c.method === 'PUT')?.body).toMatchObject({ gptMode: 'apikey' }));
+    await waitFor(() => expect(s.calls.find((c) => c.method === 'PUT')?.body).toMatchObject({ budget: { monthlyUsd: 80 } }));
   });
 
   test('iOS push guidance shown when not standalone', async () => {
     settingsServer();
     render(<SettingsView onClose={() => {}} />);
-    expect(await screen.findByText(/홈 화면에 추가한 뒤에만 알림을 받을 수 있어요/)).toBeTruthy();
+    expect(await screen.findByText(/홈 화면에 추가한 앱에서만 알림을 받을 수 있어요/)).toBeTruthy();
   });
 
   test('run briefing now', async () => {

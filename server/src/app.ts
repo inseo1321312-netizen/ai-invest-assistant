@@ -1,3 +1,4 @@
+import type { ApiKeys, KeyProvider, VerifyResult } from './ai/apiKeys.js';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Config } from './config.js';
 import type { Db } from './db.js';
@@ -42,12 +43,12 @@ export interface AppDeps {
   push: Push;
   runBriefing?: () => Promise<void>;
   catchUp?: () => Promise<void>;
-  settings: { router: AiRouter; budget: Budget };
+  settings: { router: AiRouter; budget: Budget; keys: ApiKeys; verifyKey: (p: KeyProvider, key: string) => Promise<VerifyResult> };
   /** 화면 빌드 폴더(web/dist). 없으면 API만 제공 */
   webDist?: string;
   catalog: ModelCatalog;
   persistence?: Persistence | null;
-  checkClaude?: (() => Promise<void>) | null;
+  checkClaude?: (() => Promise<boolean | void>) | null;
   /** 종목 이름·검색(코인·한국·미국) */
   instruments?: InstrumentCatalog | null;
   /** 지금 뜨는 종목 */

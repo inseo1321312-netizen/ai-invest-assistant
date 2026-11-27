@@ -22,7 +22,7 @@ function errorEvent(code: string | null, status: number | null, mode: 'siwc' | '
     return { type: 'error', code: 'budget', message: '이번 달 GPT API 사용 한도에 도달했습니다' };
   }
   if (status === 401 || status === 403 || (code && SIWC_AUTH_CODES.has(code))) {
-    return { type: 'error', code: 'auth', message: mode === 'siwc' ? 'ChatGPT 다시 로그인이 필요합니다' : 'OpenAI API 키를 확인하세요' };
+    return { type: 'error', code: 'auth', message: mode === 'siwc' ? 'ChatGPT 다시 로그인이 필요합니다' : 'ChatGPT API 키를 확인하세요' };
   }
   if (status === 429) return { type: 'error', code: 'provider', message: 'GPT 요청이 많아요. 잠시 뒤에 다시 시도하세요' };
   return { type: 'error', code: 'provider', message: 'GPT 응답 중 오류가 났습니다' };
@@ -31,15 +31,15 @@ function errorEvent(code: string | null, status: number | null, mode: 'siwc' | '
 export function createGptAdapter(opts: {
   mode: () => 'siwc' | 'apikey';
   siwc: SiwcTokenStore;
-  apiKey: string | null;
+  apiKey: () => string | null;
   budget: Budget;
   fetchImpl?: typeof fetch;
 }): AiAdapter {
   return async function* runGpt(req, model) {
     const mode = opts.mode();
     if (mode === 'apikey') {
-      if (!opts.apiKey) {
-        yield { type: 'error', code: 'auth', message: 'OpenAI API 키가 설정되지 않았습니다' };
+      if (!opts.apiKey()) {
+        yield { type: 'error', code: 'auth', message: 'ChatGPT API 키가 없어요. 설정 → AI 연결에서 넣어 주세요' };
         return;
       }
       const allowed = opts.budget.check(req.purpose, 'gpt');
@@ -64,7 +64,7 @@ export function createGptAdapter(opts: {
     let servedModel = model;
 
     const makeClient = async (forceRefresh: boolean) => {
-      const key = mode === 'apikey' ? opts.apiKey! : forceRefresh ? await opts.siwc.forceRefresh() : await opts.siwc.getAccessToken();
+      const key = mode === 'apikey' ? opts.apiKey()! : forceRefresh ? await opts.siwc.forceRefresh() : await opts.siwc.getAccessToken();
       return new OpenAI({ apiKey: key, baseURL: OPENAI_BASE_URL, maxRetries: 0, fetch: opts.fetchImpl });
     };
 

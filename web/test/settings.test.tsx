@@ -59,7 +59,6 @@ test('alert settings list coins, remove one, and save thresholds', async () => {
   });
   render(<AlertSettings />);
   expect(await screen.findByText('BTC', { ignore: '.avatar-text, script, style' })).toBeTruthy();
-  expect(screen.getByText(/새벽 2시~6시/)).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: 'ETH 무기한 알림 끄기' }));
   await waitFor(() => expect(s.calls.some((c) => c.method === 'DELETE' && c.url.searchParams.get('key') === 'coin:ETH-USDT-SWAP')).toBe(true));
   await userEvent.click(screen.getByRole('button', { name: '알림 기준 저장' }));
@@ -75,5 +74,5 @@ test('alert settings reject out-of-range thresholds before saving', async () => 
   await userEvent.click(screen.getByRole('button', { name: '알림 기준 저장' }));
   expect(await screen.findByText(/0.5~50/)).toBeTruthy();
   expect(s.calls.some((c) => c.method === 'PUT')).toBe(false);
-  expect(screen.getByText(/코인 화면의 🔔/)).toBeTruthy();
+  expect(screen.getByText(/코인 화면에서 🔔을 누르면/)).toBeTruthy();
 });

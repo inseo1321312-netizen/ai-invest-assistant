@@ -84,7 +84,7 @@ function UsageSheet({ usage, onClose }: { usage: Usage | null; onClose: () => vo
           <div className={`bar${pct(usage.today.interactive, usage.limits.interactiveDailyUsd) > 80 ? ' hot' : ''}`}><i style={{ width: `${pct(usage.today.interactive, usage.limits.interactiveDailyUsd)}%` }} /></div>
           <div className="kv"><span>이번 달</span><span className="num">{usd(usage.month)} / {usd(usage.limits.monthlyUsd)}</span></div>
           <div className={`bar${pct(usage.month, usage.limits.monthlyUsd) > 80 ? ' hot' : ''}`}><i style={{ width: `${pct(usage.month, usage.limits.monthlyUsd)}%` }} /></div>
-          <h3 style={{ margin: '16px 0 4px' }}>ChatGPT Plus</h3>
+          <h3 style={{ margin: '16px 0 4px' }}>ChatGPT 구독</h3>
           <div className="kv"><span>최근 5시간 요청</span><span className="num">{usage.requests?.gpt5h ?? 0}회</span></div>
           <div className="kv"><span>오늘 요청</span><span className="num">{usage.requests?.gptToday ?? 0}회</span></div>
           {usage.gptLimitHitAt && <p className="notice" style={{ margin: '8px 0 0' }}>마지막으로 한도에 걸린 시각: {formatDateTimeKst(Math.floor(usage.gptLimitHitAt / 1000))}</p>}

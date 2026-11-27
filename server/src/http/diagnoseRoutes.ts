@@ -23,7 +23,7 @@ export function registerDiagnoseRoutes(app: FastifyInstance, deps: {
   connected: { kis: boolean };
   siwc: SiwcTokenStore;
   persistence?: Persistence | null;
-  checkClaude?: (() => Promise<void>) | null;
+  checkClaude?: (() => Promise<boolean | void>) | null;
   instruments?: InstrumentCatalog | null;
   upbit?: Pick<UpbitClient, 'markets'> | null;
   news?: Pick<News, 'search'> | null;
@@ -97,21 +97,21 @@ export function registerDiagnoseRoutes(app: FastifyInstance, deps: {
         }
       })(),
       (async (): Promise<Check> => {
-        if (!deps.checkClaude) return { id: 'claude', label: 'Claude', state: 'off', detail: 'Claude 키가 없어요' };
+        if (!deps.checkClaude) return { id: 'claude', label: 'Claude', state: 'off', detail: '키 없음 · 설정 → AI 연결' };
         try {
-          await withTimeout(deps.checkClaude());
+          if ((await withTimeout(deps.checkClaude())) === false) return { id: 'claude', label: 'Claude', state: 'off', detail: '키 없음 · 설정 → AI 연결' };
           return { id: 'claude', label: 'Claude', state: 'ok', detail: '키가 정상이에요' };
         } catch {
           return { id: 'claude', label: 'Claude', state: 'fail', detail: 'Claude 키를 확인하세요' };
         }
       })(),
       (async (): Promise<Check> => {
-        if (!deps.siwc.has()) return { id: 'chatgpt', label: 'ChatGPT Plus', state: 'off', detail: '아직 연결 안 됨. 설정 → ChatGPT 연결을 누르세요' };
+        if (!deps.siwc.has()) return { id: 'chatgpt', label: 'ChatGPT 구독', state: 'off', detail: '연결 안 됨 · 설정 → AI 연결' };
         try {
           await withTimeout(deps.siwc.getAccessToken());
-          return { id: 'chatgpt', label: 'ChatGPT Plus', state: 'ok', detail: '연결됨' };
+          return { id: 'chatgpt', label: 'ChatGPT 구독', state: 'ok', detail: '연결됨' };
         } catch {
-          return { id: 'chatgpt', label: 'ChatGPT Plus', state: 'fail', detail: '다시 로그인이 필요해요' };
+          return { id: 'chatgpt', label: 'ChatGPT 구독', state: 'fail', detail: '다시 로그인이 필요해요' };
         }
       })(),
       (async (): Promise<Check> => {

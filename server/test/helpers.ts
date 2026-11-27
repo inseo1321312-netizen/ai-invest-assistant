@@ -1,3 +1,4 @@
+import { createApiKeys } from '../src/ai/apiKeys.js';
 import { openDb } from '../src/db.js';
 import { loadConfig } from '../src/config.js';
 import type { AppDeps } from '../src/app.js';
@@ -28,7 +29,7 @@ export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps & { clock: T
   const clock = makeClock();
   const db = overrides.db ?? openDb(':memory:');
   const market = createMarketService({ okx: fakeOkx(), kis: fakeKis(), db, now: clock.now, fx: async () => 1400 });
-  return { config: testConfig(), db, now: clock.now, clock, market, connected: { kis: false }, siwc: createSiwcTokenStore({ db, now: clock.now }), runAi: fakeRunAi([]).runAi, push: createPush({ vapid: null, db }), settings: { router: createAiRouter({ claude: async function* () {}, gpt: async function* () {}, db }), budget: createBudget(db, clock.now) }, catalog: createModelCatalog({ now: clock.now, listClaude: async () => [], listGpt: async () => [] }), ...overrides } as AppDeps & { clock: TestClock };
+  return { config: testConfig(), db, now: clock.now, clock, market, connected: { kis: false }, siwc: createSiwcTokenStore({ db, now: clock.now }), runAi: fakeRunAi([]).runAi, push: createPush({ vapid: null, db }), settings: { router: createAiRouter({ claude: async function* () {}, gpt: async function* () {}, db }), budget: createBudget(db, clock.now), keys: createApiKeys({ db, secret: 'test-secret-'.repeat(4), env: { claude: null, openai: null } }), verifyKey: async () => 'ok' as const }, catalog: createModelCatalog({ now: clock.now, listClaude: async () => [], listGpt: async () => [] }), ...overrides } as AppDeps & { clock: TestClock };
 }
 
 /** 로그인 후 세션 쿠키 헤더 값을 돌려준다. */

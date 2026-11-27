@@ -103,7 +103,7 @@ describe('gpt adapter', () => {
     const siwc = createSiwcTokenStore({ db, fetchImpl: f });
     siwc.save(tokens());
     const budget = createBudget(db, makeClock().now);
-    const run = createGptAdapter({ mode: () => mode, siwc, apiKey, budget, fetchImpl: f });
+    const run = createGptAdapter({ mode: () => mode, siwc, apiKey: () => apiKey, budget, fetchImpl: f });
     return { run, f, siwc, budget };
   }
 
@@ -181,7 +181,7 @@ describe('gpt adapter', () => {
 
   test('apikey mode without key → auth error; siwc not connected → auth error', async () => {
     const a = setup({}, 'apikey', null);
-    expect((await collect(a.run(req(), 'gpt-6-luna'))).at(-1)).toEqual({ type: 'error', code: 'auth', message: 'OpenAI API 키가 설정되지 않았습니다' });
+    expect((await collect(a.run(req(), 'gpt-6-luna'))).at(-1)).toEqual({ type: 'error', code: 'auth', message: 'ChatGPT API 키가 없어요. 설정 → AI 연결에서 넣어 주세요' });
     const b = setup({});
     b.siwc.clear();
     expect((await collect(b.run(req(), 'gpt-6-luna'))).at(-1)).toEqual({ type: 'error', code: 'auth', message: 'ChatGPT 연결이 필요합니다. 설정에서 안내를 따라 연결하세요' });
