@@ -259,3 +259,48 @@ export async function runOvernight(deps: OvernightDeps, args: { from: number; to
     .run(args.day, args.from, args.to, args.origin, deps.provider, model, JSON.stringify(body), JSON.stringify(facts), createdAt, cost);
   return { ...body, id: Number(res.lastInsertRowid), day: args.day, from: args.from, to: args.to, origin: args.origin, provider: deps.provider, model, facts, createdAt, costUsd: cost };
 }
+
+const RETRY_AFTER_FAIL_MS = 30 * 60_000;
+
+/**
+ * 언제 만들지: 오늘 정리 시각이 지났는데 오늘 자동 정리가 없으면 뒤에서 하나 만든다(한 번에 하나).
+ * tick은 1분 작업에서(설정의 알림 켬/끔을 따름), ensure({notify:false})는 앱을 열 때.
+ * 실패하면 30분 동안은 자동으로 다시 하지 않는다('다시 정리'는 바로 된다).
+ */
+export function createOvernight(deps: Omit<OvernightDeps, 'provider'> & { provider: () => ProviderId; push: { sendAll(p: { title: string; body: string; url?: string }): Promise<void> } }) {
+  let running: Promise<void> | null = null;
+  let error: string | null = null;
+  let failedAt = 0;
+
+  function start(origin: 'scheduled' | 'manual', notify: boolean): Promise<void> {
+    if (running) return running;
+    error = null;
+    const w = overnightWindow(readSettings(deps.db), deps.now());
+    running = runOvernight({ ...deps, provider: deps.provider() }, { from: w.from, to: deps.now(), day: w.day, origin })
+      .then(async (r) => {
+        if (notify) await deps.push.sendAll({ title: '밤사이 정리', body: r.headline, url: '/?tab=overnight' }).catch(() => undefined);
+      })
+      .catch((e: unknown) => {
+        error = e instanceof Error && e.message ? e.message : FAILED;
+        failedAt = deps.now();
+      })
+      .finally(() => { running = null; });
+    return running;
+  }
+
+  function ensure(opts: { notify: boolean }): Promise<void> {
+    if (running) return running;
+    const w = overnightWindow(readSettings(deps.db), deps.now());
+    if (deps.now() < w.to || hasScheduled(deps.db, w.day)) return Promise.resolve();
+    if (failedAt && deps.now() - failedAt < RETRY_AFTER_FAIL_MS) return Promise.resolve();
+    return start('scheduled', opts.notify);
+  }
+
+  return {
+    ensure,
+    tick: () => ensure({ notify: readSettings(deps.db).notify }),
+    rerun: () => start('manual', false),
+    state: () => ({ making: running !== null, error }),
+  };
+}
+export type Overnight = ReturnType<typeof createOvernight>;

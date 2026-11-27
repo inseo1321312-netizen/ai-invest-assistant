@@ -30,7 +30,8 @@ import { createGptAdapter } from './ai/gpt.js';
 import { createAiRouter } from './ai/router.js';
 import type { AiAdapter } from './ai/types.js';
 import { createPush } from './push.js';
-import { ensureCatchUp, runMorningBriefing } from './features/briefing.js';
+import { runMorningBriefing } from './features/briefing.js';
+import { createOvernight } from './features/overnight.js';
 import { startScheduler } from './scheduler.js';
 import { createKeepAwake } from './keepAwake.js';
 import { createModelCatalog, fetchGptModels } from './ai/modelCatalog.js';
@@ -123,7 +124,9 @@ async function main() {
   const push = createPush({ vapid: config.vapid, db, subject: config.publicUrl });
   const featureDeps = { db, market, runAi: router.runAi, now, push, trending, news, instruments };
   const runBriefing = () => runMorningBriefing(featureDeps);
-  const catchUp = () => ensureCatchUp(featureDeps);
+  // 밤사이 정리가 8시 아침 브리핑을 대신한다. AI는 Claude 키가 있으면 Claude, 없으면 GPT
+  const overnight = createOvernight({ ...featureDeps, overview, provider: () => (keys.get('claude') ? 'claude' : 'gpt') });
+  const catchUp = () => overnight.tick();
   const checkClaude = async () => {
     const c = anthropicClient();
     if (!c) return false;
@@ -133,7 +136,7 @@ async function main() {
 
   const app = await buildApp({
     config, db, now, market, connected: { kis: config.kis !== null }, siwc, runAi: router.runAi,
-    push, runBriefing, catchUp, settings: { router, budget, keys, verifyKey: (p: KeyProvider, key: string) => verifyKey(p, key) }, catalog, persistence, checkClaude,
+    push, runBriefing, catchUp, overnight, settings: { router, budget, keys, verifyKey: (p: KeyProvider, key: string) => verifyKey(p, key) }, catalog, persistence, checkClaude,
     sentiment,
     instruments, trending, overview, news, instrumentInfo, upbit,
     stocksAvailable: true, naver, kis: config.kis ? kis : null, logos,
@@ -154,8 +157,7 @@ async function main() {
   });
   const priceAlerts = createPriceAlertMonitor({ db, now, getQuote: (i) => market.getQuote(i), push, names: instruments });
   startScheduler({
-    briefing: runBriefing,
-    alertPrices: async () => { await alerts.tickPrices(); await priceAlerts.tick(); },
+    alertPrices: async () => { await alerts.tickPrices(); await priceAlerts.tick(); void overnight.tick(); }, // 정리는 오래 걸리니 기다리지 않는다(가격 알림이 밀리지 않게)
     alertEvents: alerts.tickEvents,
     // Render에서는 공개 주소가 있다: 그 주소로 자기를 불러 깨어 있는다
     keepAwake: config.publicUrl ? createKeepAwake({ fetch, url: config.publicUrl }) : undefined,

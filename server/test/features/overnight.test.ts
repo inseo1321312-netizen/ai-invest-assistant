@@ -3,7 +3,7 @@ import { openDb } from '../../src/db.js';
 import type { MarketService } from '../../src/market/service.js';
 import { parseInstrumentKey, type Candle, type Instrument, type Quote } from '../../src/market/types.js';
 import type { NewsItem } from '../../src/market/news.js';
-import { DEFAULT_SETTINGS, latestOvernight, overnightWindow, readSettings, runOvernight, saveSettings } from '../../src/features/overnight.js';
+import { createOvernight, DEFAULT_SETTINGS, latestOvernight, overnightHistory, overnightWindow, readSettings, runOvernight, saveSettings } from '../../src/features/overnight.js';
 import { fakeRunAi, type FakeStep } from '../ai/fakeRunAi.js';
 
 const KST = (s: string) => Date.parse(`${s}+09:00`);
@@ -126,5 +126,78 @@ describe('runOvernight', () => {
     const bad = submit({ news: [{ n: 9, why: 'x' }] });
     const s = setup([[bad], [bad]], { holdings: [BTC] });
     await expect(runOvernight(s.deps, s.args)).rejects.toThrow('밤사이 정리를 만들지 못했어요');
+  });
+});
+
+describe('when it runs', () => {
+  function scheduled(script: FakeStep[][], at: string) {
+    const s = setup(script, { holdings: [BTC] });
+    let t = KST(at);
+    const sent: { title: string; body: string }[] = [];
+    const o = createOvernight({ ...s.deps, now: () => t, provider: () => 'gpt', push: { sendAll: async (p) => { sent.push(p); } } });
+    return { ...s, o, sent, set: (x: string) => { t = KST(x); } };
+  }
+  const ok = submit({ items: [{ key: BTC, note: 'ETF 자금 유출' }], news: [] });
+
+  test('nothing before the wake time; at the wake time exactly one recap and one push, even if two checks overlap', async () => {
+    const s = scheduled([[ok], [ok]], '2026-11-28T06:59:00');
+    await s.o.tick();
+    expect(latestOvernight(s.db)).toBeNull();
+    s.set('2026-11-28T07:01:00');
+    await Promise.all([s.o.tick(), s.o.tick()]);
+    expect(overnightHistory(s.db)).toHaveLength(1);
+    expect(latestOvernight(s.db)).toMatchObject({ origin: 'scheduled', provider: 'gpt', from: KST('2026-11-27T23:00:00'), to: KST('2026-11-28T07:01:00') });
+    expect(s.sent).toEqual([{ title: '밤사이 정리', body: '나스닥 +1.2% 마감, 비트코인은 밤새 -2.9%', url: '/?tab=overnight' }]);
+    await s.o.tick();
+    expect(s.ai.calls()).toBe(1);
+  });
+
+  test('opening the app after the wake time makes it without a push; notifications off means no push either', async () => {
+    const s = scheduled([[ok]], '2026-11-28T09:30:00');
+    await s.o.ensure({ notify: false });
+    expect(latestOvernight(s.db)?.origin).toBe('scheduled');
+    expect(s.sent).toEqual([]);
+    const off = scheduled([[ok]], '2026-11-28T07:05:00');
+    saveSettings(off.db, { ...DEFAULT_SETTINGS, notify: false });
+    await off.o.tick();
+    expect(latestOvernight(off.db)).not.toBeNull();
+    expect(off.sent).toEqual([]);
+  });
+
+  test('a failure is shown, is not retried every minute, and a manual rerun still works', async () => {
+    const s = scheduled([[{ text: '...' }], [{ text: '...' }], [ok]], '2026-11-28T07:01:00');
+    await s.o.tick();
+    expect(s.o.state()).toEqual({ making: false, error: '밤사이 정리를 만들지 못했어요' });
+    s.set('2026-11-28T07:02:00');
+    await s.o.tick();
+    expect(s.ai.calls()).toBe(2);
+    s.set('2026-11-28T08:00:00');
+    await s.o.rerun();
+    expect(latestOvernight(s.db)).toMatchObject({ origin: 'manual', to: KST('2026-11-28T08:00:00') });
+    expect(s.o.state().error).toBeNull();
+  });
+});
+
+describe('overnight routes', () => {
+  test('read, settings (bad ones refused), history and one recap', async () => {
+    const { buildApp } = await import('../../src/app.js');
+    const { loginCookie, testDeps } = await import('../helpers.js');
+    const s = setup([[submit({ items: [], news: [] })]]);
+    const overnight = createOvernight({ ...s.deps, provider: () => 'claude', push: { sendAll: async () => {} } });
+    const deps = testDeps({ db: s.db, overnight });
+    const app = await buildApp(deps);
+    const cookie = await loginCookie(app);
+    const get = await app.inject({ method: 'GET', url: '/api/overnight', headers: { cookie } });
+    expect(get.json()).toMatchObject({ settings: DEFAULT_SETTINGS, sleepTimes: expect.arrayContaining(['21:00', '02:00']), wakeTimes: expect.arrayContaining(['06:00', '11:00']) });
+    expect((await app.inject({ method: 'PUT', url: '/api/overnight/settings', headers: { cookie }, payload: { sleep: '23:00', wake: '05:00', notify: true } })).statusCode).toBe(400);
+    const put = await app.inject({ method: 'PUT', url: '/api/overnight/settings', headers: { cookie }, payload: { sleep: '00:30', wake: '06:30', notify: false } });
+    expect(put.json().settings).toEqual({ sleep: '00:30', wake: '06:30', notify: false });
+    const run = await app.inject({ method: 'POST', url: '/api/overnight/run', headers: { cookie } });
+    expect(run.json()).toEqual({ making: true });
+    await new Promise((r) => setTimeout(r, 50));
+    const h = (await app.inject({ method: 'GET', url: '/api/overnight/history', headers: { cookie } })).json().items;
+    expect(h).toHaveLength(1);
+    expect((await app.inject({ method: 'GET', url: `/api/overnight/${h[0].id}`, headers: { cookie } })).json().recap.id).toBe(h[0].id);
+    expect((await app.inject({ method: 'GET', url: '/api/overnight/999', headers: { cookie } })).statusCode).toBe(404);
   });
 });

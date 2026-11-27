@@ -136,13 +136,13 @@ describe('push and scheduler', () => {
   });
 
 
-  test('scheduler registers the 08:00 briefing and the alert checks in Asia/Seoul', () => {
+  test('scheduler registers the alert checks in Asia/Seoul (no 08:00 briefing)', () => {
     const jobs: { pattern: string; opts: Record<string, unknown> }[] = [];
     const s = startScheduler(
-      { briefing: async () => {}, alertPrices: async () => {}, alertEvents: async () => {} },
+      { alertPrices: async () => {}, alertEvents: async () => {} },
       (pattern, opts) => { jobs.push({ pattern, opts }); return { stop() {} }; },
     );
-    expect(jobs.map((j) => j.pattern)).toEqual(['0 8 * * *', '* * * * *', '*/5 * * * *']);
+    expect(jobs.map((j) => j.pattern)).toEqual(['* * * * *', '*/5 * * * *']); // 8시 브리핑은 밤사이 정리가 대신한다
     expect(jobs.every((j) => j.opts.timezone === 'Asia/Seoul' && j.opts.protect === true)).toBe(true);
     s.stop();
   });
@@ -150,11 +150,11 @@ describe('push and scheduler', () => {
   test('with a keep-awake ping it runs every 10 minutes except 02:00–05:59 KST', () => {
     const jobs: string[] = [];
     startScheduler(
-      { briefing: async () => {}, alertPrices: async () => {}, alertEvents: async () => {}, keepAwake: async () => {} },
+      { alertPrices: async () => {}, alertEvents: async () => {}, keepAwake: async () => {} },
       (pattern) => { jobs.push(pattern); return { stop() {} }; },
     );
     expect(jobs).toContain('*/10 0-1,6-23 * * *');
-    expect(jobs).toHaveLength(4);
+    expect(jobs).toHaveLength(3);
   });
 });
 

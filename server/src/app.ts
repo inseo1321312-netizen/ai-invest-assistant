@@ -21,6 +21,8 @@ import type { ModelCatalog } from './ai/modelCatalog.js';
 import { registerDiagnoseRoutes } from './http/diagnoseRoutes.js';
 import { registerInfoRoutes } from './http/infoRoutes.js';
 import { registerHoldingsRoutes } from './http/holdingsRoutes.js';
+import { registerOvernightRoutes } from './http/overnightRoutes.js';
+import type { Overnight } from './features/overnight.js';
 import { registerAlertRoutes } from './http/alertRoutes.js';
 import type { InstrumentCatalog } from './market/catalog.js';
 import type { MarketOverview } from './market/overview.js';
@@ -44,6 +46,8 @@ export interface AppDeps {
   push: Push;
   runBriefing?: () => Promise<void>;
   catchUp?: () => Promise<void>;
+  /** 밤사이 정리(정리 시각에 만들기·다시 정리) */
+  overnight?: Overnight | null;
   settings: { router: AiRouter; budget: Budget; keys: ApiKeys; verifyKey: (p: KeyProvider, key: string) => Promise<VerifyResult> };
   /** 화면 빌드 폴더(web/dist). 없으면 API만 제공 */
   webDist?: string;
@@ -89,6 +93,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerDiagnoseRoutes(app, deps);
   registerInfoRoutes(app, deps);
   registerHoldingsRoutes(app, deps);
+  registerOvernightRoutes(app, deps);
   registerAlertRoutes(app, deps);
   return app;
 }
