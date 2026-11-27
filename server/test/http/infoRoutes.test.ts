@@ -45,7 +45,8 @@ test('news and instrument info routes', async () => {
   const cookie = await loginCookie(app);
   expect((await app.inject({ method: 'GET', url: '/api/news?key=kr:005930', headers: { cookie } })).json().items).toHaveLength(1);
   await app.inject({ method: 'GET', url: '/api/news?key=kr:005930&from=100&to=200', headers: { cookie } });
-  expect(seen).toEqual([{ q: '삼성전자', range: undefined }, { q: '삼성전자', range: { from: 100, to: 200 } }]);
+  const q = '삼성전자 (주가 OR 주식 OR 실적 OR 증시)';
+  expect(seen).toEqual([{ q, range: undefined }, { q, range: { from: 100, to: 200 } }]);
   expect((await app.inject({ method: 'GET', url: '/api/news?key=bad', headers: { cookie } })).statusCode).toBe(400);
   expect((await app.inject({ method: 'GET', url: '/api/instrument/info?key=kr:005930', headers: { cookie } })).json()).toEqual({ stock: null, coin: null });
   expect((await app.inject({ method: 'GET', url: '/api/instrument/info?key=bad', headers: { cookie } })).statusCode).toBe(400);

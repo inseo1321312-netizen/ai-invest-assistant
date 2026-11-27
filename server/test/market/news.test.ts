@@ -46,8 +46,8 @@ test('failures give an empty list', async () => {
 });
 
 test('query words per market', () => {
-  expect(newsQueryFor(parseInstrumentKey('kr:005930'), '삼성전자')).toBe('삼성전자');
-  expect(newsQueryFor(parseInstrumentKey('us:NAS:AAPL'), null)).toBe('AAPL');
+  expect(newsQueryFor(parseInstrumentKey('kr:005930'), '삼성전자')).toBe('삼성전자 (주가 OR 주식 OR 실적 OR 증시)');
+  expect(newsQueryFor(parseInstrumentKey('us:NAS:AAPL'), null)).toBe('AAPL (주가 OR 주식 OR 실적 OR 증시)');
   expect(newsQueryFor(parseInstrumentKey('coin:BTC-USDT-SWAP'), '비트코인')).toBe('비트코인');
   expect(newsQueryFor(parseInstrumentKey('coin:PEPE-USDT'), null)).toBe('PEPE 코인');
 });

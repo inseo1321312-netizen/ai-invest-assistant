@@ -210,3 +210,33 @@ describe('router', () => {
     expect(createAiRouter({ claude: async function* () {}, gpt: async function* () {}, db }).gptMode()).toBe('apikey');
   });
 });
+
+describe('gpt thinking depth', () => {
+  test('deeper thinking asks for more reasoning; a model that refuses it still answers', async () => {
+    const db = openDb(':memory:');
+    const bodies: Record<string, unknown>[] = [];
+    let n = 0;
+    const f = fakeFetch({ '/v1/responses': (_u, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      if (n++ === 0) return new Response(JSON.stringify({ error: { message: "Unsupported parameter: 'reasoning.effort'", type: 'invalid_request_error', param: 'reasoning.effort', code: 'unsupported_parameter' } }), { status: 400, headers: { 'content-type': 'application/json' } });
+      return textTurn('답');
+    } });
+    const siwc = createSiwcTokenStore({ db, fetchImpl: f });
+    siwc.save(tokens());
+    const run = createGptAdapter({ mode: () => 'siwc', siwc, apiKey: () => null, budget: createBudget(db, makeClock().now), fetchImpl: f });
+    const ev = await collect(run(req({ tier: 'deep' }), 'gpt-6.1-terra'));
+    expect(bodies[0]!.reasoning).toEqual({ effort: 'high' });
+    expect(bodies[1]!.reasoning).toBeUndefined();
+    expect(ev.at(-1)).toMatchObject({ type: 'done', text: '답' });
+  });
+
+  test('the normal level sends no reasoning setting', async () => {
+    const db = openDb(':memory:');
+    const f = fakeFetch({ '/v1/responses': () => textTurn('답') });
+    const siwc = createSiwcTokenStore({ db, fetchImpl: f });
+    siwc.save(tokens());
+    const run = createGptAdapter({ mode: () => 'siwc', siwc, apiKey: () => null, budget: createBudget(db, makeClock().now), fetchImpl: f });
+    await collect(run(req({ tier: 'standard' }), 'gpt-6.1-sol'));
+    expect(JSON.parse(String(f.calls[0]!.init?.body)).reasoning).toBeUndefined();
+  });
+});

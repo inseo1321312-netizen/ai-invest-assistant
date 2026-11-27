@@ -12,6 +12,8 @@ export interface UsageSummary {
   limits: BudgetLimits;
   requests: { gpt5h: number; gptToday: number; claudeToday: number };
   gptLimitHitAt: number | null;
+  /** 한도에 걸렸을 때 5시간 안 요청 수(추정 한도). 아직 걸린 적 없으면 null */
+  gptCapEstimate: number | null;
 }
 
 export interface Budget {
@@ -44,7 +46,10 @@ export function createBudget(db: Db, now: () => number): Budget {
   return {
     limits,
     setLimits(l) { db.kvSet(LIMITS_KEY, l); },
-    noteLimitHit(provider) { db.kvSet(`limitHit.${provider}`, now()); },
+    noteLimitHit(provider) {
+      db.kvSet(`limitHit.${provider}`, now());
+      if (provider === 'gpt') db.kvSet('limitCap.gpt', n(countSince.get('gpt', now() - 5 * 3600_000)));
+    },
 
     check(purpose, provider) {
       const l = limits();
@@ -82,6 +87,7 @@ export function createBudget(db: Db, now: () => number): Budget {
           claudeToday: n(countDay.get('claude', day)),
         },
         gptLimitHitAt: db.kvGet<number>('limitHit.gpt'),
+        gptCapEstimate: db.kvGet<number>('limitCap.gpt'),
       };
     },
   };

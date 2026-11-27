@@ -20,7 +20,8 @@ export async function myNews(deps: { db: Db; news: Pick<News, 'search'>; instrum
     const known = deps.instruments?.nameOf(key) ?? null;
     const name = known ?? key.split(':').at(-1)!;
     const items = await deps.news.search(newsQueryFor(parseInstrumentKey(key), known)).catch(() => []);
-    return items.filter((n) => n.publishedAt >= since).slice(0, PER_KEY).map((n) => ({ key, name, title: n.title, url: n.url, source: n.source, publishedAt: n.publishedAt }));
+    const words = [name, key.split(':').at(-1)!.split('-')[0]!].map((w) => w.toLowerCase());
+    return items.filter((n) => n.publishedAt >= since && words.some((w) => n.title.toLowerCase().includes(w))).slice(0, PER_KEY).map((n) => ({ key, name, title: n.title, url: n.url, source: n.source, publishedAt: n.publishedAt }));
   }));
   const seen = new Set<string>();
   return lists.flat()

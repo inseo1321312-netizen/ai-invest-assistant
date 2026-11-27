@@ -21,10 +21,10 @@ test('holdings list with live price and profit from the average price; delete re
 
 test('my news comes from favorites and holdings', async () => {
   const t = Math.floor(testDeps().now() / 1000);
-  const deps = testDeps({ news: { search: async () => [{ title: '비트코인 소식', url: 'https://n/1', source: 'A', publishedAt: t - 60 }] } });
+  const deps = testDeps({ news: { search: async () => [{ title: 'BTC 비트코인 소식', url: 'https://n/1', source: 'A', publishedAt: t - 60 }] } });
   deps.market.addWatch('coin:BTC-USDT');
   const app = await buildApp(deps);
   const cookie = await loginCookie(app);
   const res = (await app.inject({ method: 'GET', url: '/api/news/mine', headers: { cookie } })).json();
-  expect(res.items).toEqual([expect.objectContaining({ key: 'coin:BTC-USDT', title: '비트코인 소식', url: 'https://n/1' })]);
+  expect(res.items).toEqual([expect.objectContaining({ key: 'coin:BTC-USDT', title: 'BTC 비트코인 소식', url: 'https://n/1' })]);
 });

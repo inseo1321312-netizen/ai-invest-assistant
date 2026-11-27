@@ -75,12 +75,12 @@ test('my news: favorites and holdings, newest first, no duplicates, tagged with 
   const t = NOW / 1000;
   const news = {
     async search(q: string) {
-      if (q === '삼성전자') return [{ title: '삼성 실적', url: 'https://n/1', source: 'A', publishedAt: t - 600 }, { title: '같은 기사', url: 'https://n/dup', source: 'B', publishedAt: t - 3600 }];
-      if (q === '비트코인') return [{ title: '비트코인 급등', url: 'https://n/2', source: 'C', publishedAt: t - 60 }, { title: '같은 기사', url: 'https://n/dup', source: 'B', publishedAt: t - 3600 }, { title: '오래된 기사', url: 'https://n/old', source: 'D', publishedAt: t - 10 * 86400 }];
+      if (q.startsWith('삼성전자')) return [{ title: '삼성전자 실적', url: 'https://n/1', source: 'A', publishedAt: t - 600 }, { title: '삼성전자·비트코인 같은 기사', url: 'https://n/dup', source: 'B', publishedAt: t - 3600 }];
+      if (q.startsWith('비트코인')) return [{ title: '비트코인 급등', url: 'https://n/2', source: 'C', publishedAt: t - 60 }, { title: '삼성전자·비트코인 같은 기사', url: 'https://n/dup', source: 'B', publishedAt: t - 3600 }, { title: '비트코인 오래된 기사', url: 'https://n/old', source: 'D', publishedAt: t - 10 * 86400 }];
       return [];
     },
   };
   const items = await myNews({ db, news, instruments, now: clock.now });
-  expect(items.map((i) => [i.name, i.title])).toEqual([['비트코인', '비트코인 급등'], ['삼성전자', '삼성 실적'], ['삼성전자', '같은 기사']]);
+  expect(items.map((i) => [i.name, i.title])).toEqual([['비트코인', '비트코인 급등'], ['삼성전자', '삼성전자 실적'], ['삼성전자', '삼성전자·비트코인 같은 기사']]);
   expect(items[0]).toMatchObject({ url: 'https://n/2', key: 'coin:BTC-USDT' });
 });

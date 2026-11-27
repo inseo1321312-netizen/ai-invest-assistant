@@ -4,7 +4,7 @@ import { toolJsonSchema } from './claude.js';
 import { costUsd } from './pricing.js';
 import { OPENAI_BASE_URL, SIWC_AUTH_CODES, SIWC_USAGE_LIMIT_CODE } from './siwcConfig.js';
 import { SiwcAuthError, type SiwcTokenStore } from './siwcTokens.js';
-import type { AiAdapter, AiEvent, AiTool } from './types.js';
+import type { AiAdapter, AiEvent, AiTool , Tier } from './types.js';
 
 const MAX_TOOL_ROUNDS = 8;
 const USAGE_LIMIT_MSG = 'ChatGPT Plus 사용량 한도에 도달했습니다 (chatgpt.com/settings/usage 에서 확인)';
@@ -27,6 +27,8 @@ function errorEvent(code: string | null, status: number | null, mode: 'siwc' | '
   if (status === 429) return { type: 'error', code: 'provider', message: 'GPT 요청이 많아요. 잠시 뒤에 다시 시도하세요' };
   return { type: 'error', code: 'provider', message: 'GPT 응답 중 오류가 났습니다' };
 }
+
+const REASONING: Record<Tier, 'low' | 'medium' | 'high'> = { light: 'low', standard: 'medium', deep: 'high' };
 
 export function createGptAdapter(opts: {
   mode: () => 'siwc' | 'apikey';
@@ -61,6 +63,8 @@ export function createGptAdapter(opts: {
     ];
     let fullText = '';
     let totalCost = 0;
+    // 보통은 모델 기본값, 가볍게·깊게만 따로 보낸다
+    let useReasoning = req.tier !== 'standard';
     let servedModel = model;
 
     const makeClient = async (forceRefresh: boolean) => {
@@ -72,6 +76,7 @@ export function createGptAdapter(opts: {
       for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
         if (req.signal?.aborted) return;
         const body: Record<string, unknown> = { model, instructions: req.instructions, input, stream: true, store: false };
+        if (useReasoning) body.reasoning = { effort: REASONING[req.tier] };
         const tools: unknown[] = [...fnTools];
         if (useWebSearch) tools.push({ type: 'web_search' });
         if (tools.length) body.tools = tools;
@@ -86,6 +91,11 @@ export function createGptAdapter(opts: {
           } catch (err) {
             if (err instanceof OpenAI.APIError) {
               if (err.status === 401 && mode === 'siwc' && !refreshed) { refreshed = true; continue; }
+              if (err.status === 400 && useReasoning && /reasoning/i.test(`${(err as { param?: string }).param ?? ''} ${err.message}`)) {
+                useReasoning = false;
+                delete body.reasoning;
+                continue;
+              }
               if (err.status === 400 && err.code === 'subscription_sharing_unsupported_capability' && useWebSearch && !droppedSearch) {
                 droppedSearch = true;
                 useWebSearch = false;

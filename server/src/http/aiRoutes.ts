@@ -18,7 +18,22 @@ function withSignal(deps: FeatureDeps, signal: AbortSignal): FeatureDeps {
   return { ...deps, runAi: (req: AiRequest) => deps.runAi({ ...req, signal }) };
 }
 
-export function registerAiRoutes(app: FastifyInstance, deps: FeatureDeps & { catalog: ModelCatalog; settings: { router: AiRouter } }) {
+export function registerAiRoutes(app: FastifyInstance, deps: FeatureDeps & { catalog: ModelCatalog; settings: { router: AiRouter; keys?: { get(p: 'claude' | 'openai'): string | null } }; siwc?: { has(): boolean } }) {
+  // 그래프 설명·분석·채팅을 처음 고를 때: Claude 키가 없으면 GPT 먼저
+  app.get('/api/ai/ready', async () => {
+    const keys = deps.settings.keys;
+    const claude = !!keys?.get('claude');
+    const gpt = deps.settings.router.gptMode() === 'apikey' ? !!keys?.get('openai') : !!deps.siwc?.has();
+    return { claude, gpt, preferred: claude ? 'claude' : 'gpt' };
+  });
+
+  app.delete('/api/chats/:id', async (req, reply) => {
+    const p = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
+    if (!p.success) return reply.code(400).send({ error: '잘못된 요청입니다' });
+    deps.db.sql.prepare('DELETE FROM chats WHERE id = ?').run(p.data.id);
+    return { ok: true };
+  });
+
   app.get('/api/ai/models', async () => ({ lists: await deps.catalog.list(), defaults: deps.settings.router.models() }));
 
   app.post('/api/analysis', async (req, reply) => {
@@ -36,7 +51,7 @@ export function registerAiRoutes(app: FastifyInstance, deps: FeatureDeps & { cat
   });
 
   app.post('/api/chat', async (req, reply) => {
-    const p = z.object({ chatId: z.number().int().nullable(), key: key.nullable(), provider, model: z.string().max(80).nullable().optional(), text: z.string().min(1).max(4000) }).safeParse(req.body);
+    const p = z.object({ chatId: z.number().int().nullable(), key: key.nullable(), provider, model: z.string().max(80).nullable().optional(), text: z.string().min(1).max(4000), depth: z.enum(['light', 'standard', 'deep']).optional() }).safeParse(req.body);
     if (!p.success) return reply.code(400).send({ error: '잘못된 요청입니다' });
     if (p.data.model && !(await deps.catalog.isAllowed(p.data.provider, p.data.model))) return reply.code(400).send({ error: '고를 수 없는 모델입니다' });
     const abort = new AbortController();

@@ -44,10 +44,14 @@ function ymdKst(sec: number): string {
   return new Date((sec + 9 * 3600) * 1000).toISOString().slice(0, 10);
 }
 
-/** 검색어: 한국·미국 주식은 이름(없으면 기호), 코인은 한글명(없으면 "기호 코인") */
+/** 검색어: 이름(없으면 기호)에 시장 단어를 붙인다. 이름에 이미 '코인'이 있으면 그대로 */
 export function newsQueryFor(inst: Instrument, name: string | null): string {
-  if (inst.market === 'coin') return name ?? `${inst.symbol.split('-')[0]} 코인`;
-  return name ?? inst.symbol;
+  if (inst.market === 'coin') {
+    const n = name ?? inst.symbol.split('-')[0]!;
+    if (/코인$/.test(n)) return n;
+    return name ? `${n} (코인 OR 가상자산 OR 시세)` : `${n} 코인`;
+  }
+  return `${name ?? inst.symbol} (주가 OR 주식 OR 실적 OR 증시)`;
 }
 
 export interface News { search(query: string, range?: { from: number; to: number }): Promise<NewsItem[]> }
