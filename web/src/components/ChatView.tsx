@@ -198,14 +198,14 @@ function ChatDrawer({ currentId, onPick, onNew, onDeleted, onClose }: {
   );
 }
 
-export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: () => void }) {
+export function ChatView({ keyId, onClose, draft }: { keyId: string | null; onClose?: () => void; draft?: string }) {
   const saved = useRef(readPref());
   const [pref, setPref] = useState<Pref>(() => saved.current ?? { provider: 'claude', model: { claude: null, gpt: null }, depth: 'standard' });
   const [ready, setReady] = useState<AiReady | null>(null);
   const [models, setModels] = useState<ModelsResponse | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(draft ?? '');
   const [sheet, setSheet] = useState<null | 'model' | 'usage' | 'drawer'>(null);
   const [currentChat, setCurrentChat] = useState<number | null>(null);
   const chatId = useRef<number | null>(null);
@@ -250,8 +250,9 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
     setMessages([]);
   }
 
-  // 같은 종목의 최근 대화(24시간 안)를 이어서 연다
+  // 같은 종목의 최근 대화(24시간 안)를 이어서 연다. 비교에서 넘어온 질문은 새 대화로 시작한다
   useEffect(() => {
+    if (draft) return;
     let alive = true;
     api<{ chats: { id: number; createdAt: number }[] }>(`/api/chats${keyId ? `?key=${encodeURIComponent(keyId)}` : ''}`)
       .then((r) => {

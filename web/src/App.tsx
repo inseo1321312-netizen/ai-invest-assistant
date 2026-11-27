@@ -106,6 +106,7 @@ function Shell() {
   const [instrument, setInstrument] = useState<string | null>(null);
   const [chatKey, setChatKey] = useState<string | null>(null);
   const [compareSeed, setCompareSeed] = useState<string | null>(null);
+  const [chatDraft, setChatDraft] = useState<{ id: number; text: string } | null>(null);
 
   // 키보드가 가린 만큼을 CSS에 알린다(입력창·시트가 키보드 위에 붙게)
   useEffect(() => watchViewport(), []);
@@ -122,7 +123,7 @@ function Shell() {
     if (t === tab && !instrument) { window.scrollTo({ top: 0, behavior: motionOk() ? 'smooth' : 'auto' }); return; }
     navigate(instrument && t === 'home' ? 'back' : 'tab', () => {
       setInstrument(null);
-      if (t === 'chat') setChatKey(null);
+      if (t === 'chat') { setChatKey(null); setChatDraft(null); }
       if (t === 'compare') setCompareSeed(null);
       setTab(t);
     });
@@ -130,14 +131,15 @@ function Shell() {
 
   let body;
   if (tab === 'home' && instrument) {
-    body = <InstrumentView key={instrument} keyId={instrument} onClose={() => navigate('back', () => setInstrument(null))} onChat={(k) => navigate('forward', () => { setChatKey(k); setTab('chat'); })} />;
+    body = <InstrumentView key={instrument} keyId={instrument} onClose={() => navigate('back', () => setInstrument(null))} onChat={(k) => navigate('forward', () => { setChatDraft(null); setChatKey(k); setTab('chat'); })}
+      onCompare={(k) => navigate('tab', () => { setInstrument(null); setCompareSeed(k); setTab('compare'); })} />;
   } else if (tab === 'home') {
     body = <Home onOpen={open} />;
   } else if (tab === 'compare') {
     body = <CompareView key={compareSeed ?? 'none'} seed={compareSeed} onOpen={(k) => navigate('forward', () => { setTab('home'); setInstrument(k); })}
-      onAsk={() => navigate('tab', () => { setChatKey(null); setTab('chat'); })} />;
+      onAsk={(text) => navigate('tab', () => { setChatKey(null); setChatDraft({ id: Date.now(), text }); setTab('chat'); })} />;
   } else if (tab === 'chat') {
-    body = <ChatView key={chatKey ?? 'all'} keyId={chatKey} onClose={chatKey ? () => navigate('back', () => { setTab('home'); setInstrument(chatKey); }) : undefined} />;
+    body = <ChatView key={chatKey ?? (chatDraft ? `draft-${chatDraft.id}` : 'all')} keyId={chatKey} draft={chatDraft?.text} onClose={chatKey ? () => navigate('back', () => { setTab('home'); setInstrument(chatKey); }) : undefined} />;
   } else {
     body = <SettingsView />;
   }

@@ -128,3 +128,23 @@ describe('compare tab', () => {
     expect(signal!.aborted).toBe(true);
   });
 });
+
+describe('ways in and out', () => {
+  test('a stock page can put the stock into compare', async () => {
+    const { InstrumentView } = await import('../src/components/InstrumentView');
+    server();
+    const onCompare = vi.fn();
+    render(<InstrumentView keyId={SS} onClose={() => {}} onChat={() => {}} onCompare={onCompare} />);
+    await userEvent.click(screen.getByRole('button', { name: '비교에 담기' }));
+    expect(onCompare).toHaveBeenCalledWith(SS);
+  });
+
+  test('AI chat opens with the comparison already written in the box, in a fresh conversation', async () => {
+    const { ChatView } = await import('../src/components/ChatView');
+    const s = server({ '/api/chats': () => ({ chats: [{ id: 3, key: null, title: '예전', createdAt: Date.now() }] }) });
+    render(<ChatView keyId={null} draft="SK하이닉스·삼성전자 스윙 비교에서 SK하이닉스가 낫다고 나왔는데, " />);
+    expect((screen.getByRole('textbox', { name: '메시지' }) as HTMLTextAreaElement).value).toBe('SK하이닉스·삼성전자 스윙 비교에서 SK하이닉스가 낫다고 나왔는데, ');
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.calls.some((c) => c.url.pathname === '/api/chats/3/messages')).toBe(false);
+  });
+});

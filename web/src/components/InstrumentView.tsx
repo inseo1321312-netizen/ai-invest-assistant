@@ -77,7 +77,7 @@ export function ExplainSheet({ keyId, bar, time, to = null, pct, onClose }: { ke
   );
 }
 
-export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onClose: () => void; onChat: (key: string) => void }) {
+export function InstrumentView({ keyId, onClose, onChat, onCompare }: { keyId: string; onClose: () => void; onChat: (key: string) => void; onCompare?: (key: string) => void }) {
   const isCoin = keyId.startsWith('coin:');
   const isSwap = keyId.endsWith('-SWAP');
   const bars = isCoin ? COIN_BARS : STOCK_BARS;
@@ -222,6 +222,7 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
         <div className="head-actions">
           <button type="button" className={`icon-btn toggle-icon${fav ? ' on star' : ''}`} aria-label="즐겨찾기" aria-pressed={fav} onClick={toggleFav}><Icon.star /></button>
           {isCoin && <button type="button" className={`icon-btn toggle-icon${bell ? ' on' : ''}`} aria-label="알림 코인" aria-pressed={bell} onClick={toggleBell}><Icon.bell /></button>}
+          {onCompare && <button type="button" className="icon-btn" aria-label="비교에 담기" onClick={() => onCompare(keyId)}><Icon.compare /></button>}
           <button type="button" className="icon-btn" aria-label="채팅" onClick={() => onChat(keyId)}><Icon.chat /></button>
         </div>
       </header>
