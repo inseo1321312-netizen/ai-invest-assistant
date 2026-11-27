@@ -106,3 +106,14 @@ test('the menu highlight is ready to move on the GPU', async () => {
   const css = readFileSync('src/styles.css', 'utf8');
   expect(css).toMatch(/\.bottom-nav::before \{[^}]*will-change: transform/);
 });
+
+test('switching tabs does not wobble the menu: no overshoot on the highlight or icons, the new screen only fades', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync('src/styles.css', 'utf8');
+  const last = (sel: RegExp) => { const all = [...css.matchAll(sel)]; return all.at(-1)?.[0] ?? ''; };
+  const pill = last(/\.bottom-nav::before \{[^}]*transition:[^}]*\}/g);
+  expect(pill).toContain('cubic-bezier(0.2, 0.8, 0.2, 1)');
+  expect(pill).not.toMatch(/cubic-bezier\([^)]*1\.\d/);
+  expect(css).toMatch(/\.bottom-nav button\[aria-current='page'\] svg \{ transform: none; \}/);
+  expect(last(/@keyframes tab-in \{[^}]*\}/g)).not.toContain('transform');
+});
