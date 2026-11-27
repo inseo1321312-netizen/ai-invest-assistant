@@ -4,7 +4,8 @@ import { api, ApiError } from '../api';
 import { bollinger, macd, rsi, sma } from '../indicators';
 import { bigMoves } from '../bigMoves';
 import type { Bar, Candle } from '../types';
-import { formatPrice, wonMode } from '../format';
+import { formatPrice, formatTimeKst, formatPct, wonMode } from '../format';
+import { createGesture, rangeOf, type RangeInfo } from '../chartGesture';
 
 /** 차트 라이브러리는 UTC로 그리므로 한국 시간으로 보이게 9시간 밀어서 넣고, 클릭하면 되돌린다. */
 const KST = 9 * 3600;
@@ -23,11 +24,11 @@ function cssVar(name: string, fallback: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
-export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 300, indicators = DEFAULT_INDICATORS, from = null, to = null, autoMarkers = false }: {
+export function CandleChart({ keyId, bar, onRangePick, markers = [], height = 300, indicators = DEFAULT_INDICATORS, from = null, to = null, autoMarkers = false }: {
   keyId: string;
   bar: Bar;
-  /** 누른 캔들의 시작 시각(UTC 초)과 직전 종가 대비 등락률(%) */
-  onPointClick?: (time: number, pct: number | null) => void;
+  /** 손가락으로 끌어 고른 구간: 시작·끝 캔들 시각(UTC 초)과 직전 종가 대비 등락률(%) */
+  onRangePick?: (from: number, to: number, pct: number | null) => void;
   /** 크게 오르내린 캔들에 ▲▼ 표시 */
   autoMarkers?: boolean;
   markers?: { time: number; text: string }[];
@@ -40,8 +41,9 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [ohlc, setOhlc] = useState<{ open: number; high: number; low: number; close: number } | null>(null);
-  const clickRef = useRef(onPointClick);
-  clickRef.current = onPointClick;
+  const pickRef = useRef(onRangePick);
+  pickRef.current = onRangePick;
+  const [sel, setSel] = useState<{ left: number; width: number; info: RangeInfo | null } | null>(null);
   const extraPanes = Number(indicators.rsi) + Number(indicators.macd);
   const totalHeight = height + extraPanes * 90;
 
@@ -67,7 +69,8 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
           rightPriceScale: { borderVisible: false },
           timeScale: { timeVisible: INTRADAY.includes(bar), secondsVisible: false, borderVisible: false, fixLeftEdge: true, fixRightEdge: true },
           crosshair: { mode: 1 },
-          handleScroll: { vertTouchDrag: false, mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true },
+          // 한 손가락 끌기는 구간 고르기에 쓴다(옆으로 밀기는 두 손가락), 벌리고 모으면 확대
+          handleScroll: { vertTouchDrag: false, mouseWheel: false, pressedMouseMove: !onRangePick, horzTouchDrag: !onRangePick },
           handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: true },
           // 원화 단위면 가격 눈금도 원으로
           localization: { locale: 'ko-KR', ...(wonMode() && !keyId.startsWith('kr:') ? { priceFormatter: (p: number) => formatPrice(p, keyId.startsWith('us:') ? 'USD' : 'USDT') } : {}) },
@@ -124,15 +127,36 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
         if (allMarkers.length) createSeriesMarkers(candleSeries, allMarkers);
         if (from !== null && to !== null) chart.timeScale().setVisibleRange({ from: t(from), to: t(to) });
         else chart.timeScale().fitContent();
-        const onClick = (p: { time?: unknown }) => {
-          if (typeof p.time !== 'number') return;
-          const at = p.time - KST;
-          const i = candles.findIndex((c) => c.time === at);
-          const prev = i > 0 ? candles[i - 1]!.close : 0;
-          clickRef.current?.(at, i > 0 && prev > 0 ? (candles[i]!.close / prev - 1) * 100 : null);
+        // 끌어서 구간 고르기 · 두 손가락으로 밀기
+        const el = box.current;
+        const ts = chart.timeScale();
+        const range = (x0: number, x1: number) => {
+          const a = ts.coordinateToLogical(x0);
+          const b = ts.coordinateToLogical(x1);
+          return a === null || b === null ? null : rangeOf(candles, a, b);
         };
-        chart.subscribeClick(onClick as never);
-        cleanup = () => { chart.unsubscribeClick(onClick as never); chart.unsubscribeCrosshairMove?.(onMove as never); chart.remove(); };
+        const gesture = createGesture({
+          onPreview: (s) => setSel(s ? { left: Math.min(s.x0, s.x1), width: Math.abs(s.x1 - s.x0), info: range(s.x0, s.x1) } : null),
+          onPick: (x0, x1) => { const r = range(x0, x1); if (r) pickRef.current?.(r.from, r.to, r.pct); },
+          onPan: (dx) => ts.scrollToPosition(ts.scrollPosition() - dx / ts.options().barSpacing, false),
+        });
+        const xOf = (e: PointerEvent) => e.clientX - el.getBoundingClientRect().left;
+        const onDown = (e: PointerEvent) => { if (pickRef.current) gesture.down(e.pointerId, xOf(e)); };
+        const onMoveP = (e: PointerEvent) => gesture.move(e.pointerId, xOf(e));
+        const onUp = (e: PointerEvent) => gesture.up(e.pointerId);
+        const onCancel = () => gesture.cancel();
+        el.addEventListener('pointerdown', onDown);
+        el.addEventListener('pointermove', onMoveP);
+        el.addEventListener('pointerup', onUp);
+        el.addEventListener('pointercancel', onCancel);
+        cleanup = () => {
+          el.removeEventListener('pointerdown', onDown);
+          el.removeEventListener('pointermove', onMoveP);
+          el.removeEventListener('pointerup', onUp);
+          el.removeEventListener('pointercancel', onCancel);
+          chart.unsubscribeCrosshairMove?.(onMove as never);
+          chart.remove();
+        };
       })
       .catch((e) => { if (alive) { setLoading(false); setError(e instanceof ApiError ? e.message : '차트를 불러오지 못했어요'); } });
     return () => { alive = false; cleanup(); };
@@ -148,7 +172,17 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
           <span className={ohlc.close >= ohlc.open ? 'up' : 'down'}>{ohlc.open ? `${ohlc.close >= ohlc.open ? '+' : ''}${(((ohlc.close - ohlc.open) / ohlc.open) * 100).toFixed(2)}%` : ''}</span>
         </div>
       )}
-      <div ref={box} role="img" aria-label={`${keyId} ${bar} 차트`} style={{ height: totalHeight, width: '100%' }} />
+      <div ref={box} role="img" aria-label={`${keyId} ${bar} 차트`} className={onRangePick ? 'chart-box pickable' : 'chart-box'} style={{ height: totalHeight, width: '100%' }} />
+      {sel && (
+        <div className="range-sel" style={{ left: sel.left, width: sel.width, height }} aria-hidden="true">
+          {sel.info && (
+            <span className="range-tag num">
+              {formatTimeKst(sel.info.from).replace('-', '/')} ~ {formatTimeKst(sel.info.to).replace('-', '/')}
+              {sel.info.pct !== null && <b className={sel.info.pct >= 0 ? 'up' : 'down'}> {formatPct(sel.info.pct)}</b>}
+            </span>
+          )}
+        </div>
+      )}
       {loading && !error && <div className="skeleton" style={{ position: 'absolute', inset: 0 }} aria-hidden="true" />}
       {error && <p className="notice" style={{ margin: 0 }}>{error}</p>}
     </div>

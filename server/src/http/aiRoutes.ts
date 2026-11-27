@@ -24,7 +24,7 @@ export function registerAiRoutes(app: FastifyInstance, deps: FeatureDeps & { cat
     const keys = deps.settings.keys;
     const claude = !!keys?.get('claude');
     const gpt = deps.settings.router.gptMode() === 'apikey' ? !!keys?.get('openai') : !!deps.siwc?.has();
-    return { claude, gpt, preferred: claude ? 'claude' : 'gpt' };
+    return { claude, gpt, preferred: claude ? 'claude' : 'gpt', gptMode: deps.settings.router.gptMode() };
   });
 
   app.delete('/api/chats/:id', async (req, reply) => {

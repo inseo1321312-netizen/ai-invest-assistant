@@ -87,7 +87,7 @@ describe('app shell', () => {
     const s = loggedIn();
     render(<App />);
     await userEvent.click(await screen.findByRole('tab', { name: '한국주식' }));
-    expect(await screen.findByText(/검색해서 ★을 누르면 여기에 모여요/)).toBeTruthy();
+    expect(await screen.findByText('종목 화면에서 ☆을 누르면 여기에 모여요')).toBeTruthy();
     expect(s.calls.some((c) => c.url.pathname === '/api/market/kr/overview')).toBe(true);
     expect(localStorage.getItem('tab')).toBe('kr');
   });

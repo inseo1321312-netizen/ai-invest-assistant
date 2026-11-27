@@ -45,13 +45,13 @@ describe('chat upgrade', () => {
     expect(await screen.findByText('답')).toBeTruthy();
   });
 
-  test('usage pill shows Claude spend, ChatGPT request count, and details sheet', async () => {
+  test('usage pill shows how much of today is used, and the sheet has the details', async () => {
     mockServer({ '/api/ai/models': () => MODELS, '/api/usage': () => USAGE, '/api/chats': () => ({ chats: [] }) });
     render(<ChatView keyId={null} />);
-    expect(await screen.findByText('오늘 $0.42')).toBeTruthy();
-    await userEvent.click(screen.getByRole('button', { name: '사용량' }));
+    expect(await screen.findByText('오늘 14%')).toBeTruthy(); // $0.42 / $3
+    await userEvent.click(screen.getByRole('button', { name: /사용량/ }));
     const sheet = await screen.findByRole('dialog', { name: '사용량' });
-    expect(within(sheet).getByText('12회')).toBeTruthy();
+    expect(within(sheet).getByText('12 / 약 50회')).toBeTruthy();
     expect(within(sheet).getByRole('link', { name: 'ChatGPT 사용량 열기' }).getAttribute('href')).toBe('https://chatgpt.com/settings/usage');
   });
 

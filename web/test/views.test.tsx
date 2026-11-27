@@ -15,7 +15,7 @@ vi.mock('lightweight-charts', () => {
       addSeries: series,
       subscribeClick: (fn: (p: { time?: number }) => void) => { chartState.click = fn; },
       unsubscribeClick: () => {},
-      timeScale: () => ({ fitContent: () => {}, setVisibleRange: () => {} }),
+      timeScale: () => ({ fitContent: () => {}, setVisibleRange: () => {}, coordinateToLogical: (x: number) => x / 100, scrollPosition: () => 0, scrollToPosition: () => {}, options: () => ({ barSpacing: 6 }) }),
       priceScale: () => ({ applyOptions: () => {} }),
       applyOptions: () => {},
       remove: () => {},
@@ -46,14 +46,11 @@ function instrumentServer(over: Record<string, Parameters<typeof mockServer>[0][
 }
 
 describe('chart', () => {
-  test('click reports original (UTC) time after KST display shift', async () => {
+  test('candles are drawn at Korean time', async () => {
     instrumentServer();
-    const onPoint = vi.fn();
-    render(<CandleChart keyId="coin:BTC-USDT" bar="1D" onPointClick={onPoint} />);
+    render(<CandleChart keyId="coin:BTC-USDT" bar="1D" onRangePick={vi.fn()} />);
     await waitFor(() => expect(chartState.data.length).toBe(1));
     expect((chartState.data[0] as { time: number }).time).toBe(1764115200 + KST_OFFSET);
-    chartState.click!({ time: 1764115200 + KST_OFFSET });
-    expect(onPoint).toHaveBeenCalledWith(1764115200, null);
   });
 
   test('chart load error shows Korean message', async () => {
@@ -127,11 +124,15 @@ describe('instrument view', () => {
     await waitFor(() => expect((btn as HTMLButtonElement).disabled).toBe(false));
   });
 
-  test('chart click opens explain sheet with clicked time', async () => {
+  test('dragging across the chart opens the explanation for that stretch', async () => {
     const s = instrumentServer({ 'POST /api/explain-point': () => sseResponse([{ type: 'text', delta: '거래량 급증' }, { type: 'explanation', text: '거래량 급증', cached: false }]) });
     render(<InstrumentView keyId="coin:BTC-USDT" onClose={() => {}} onChat={() => {}} />);
-    await waitFor(() => expect(chartState.click).not.toBeNull());
-    chartState.click!({ time: 1764115200 + KST_OFFSET });
+    await waitFor(() => expect(chartState.data.length).toBe(1));
+    const box = screen.getByRole('img', { name: /coin:BTC-USDT .+ 차트/ });
+    const pointer = (type: string, x: number) => { const ev = new MouseEvent(type, { bubbles: true, clientX: x }); Object.defineProperty(ev, 'pointerId', { value: 1 }); box.dispatchEvent(ev); };
+    pointer('pointerdown', 10);
+    pointer('pointermove', 60);
+    pointer('pointerup', 60);
     expect(await screen.findByRole('dialog', { name: '왜 움직였을까?' })).toBeTruthy();
     expect(await screen.findByText('거래량 급증')).toBeTruthy();
     expect(s.calls.find((c) => c.url.pathname === '/api/explain-point')?.body).toMatchObject({ key: 'coin:BTC-USDT', time: 1764115200 });

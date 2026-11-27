@@ -68,7 +68,7 @@ test('one conversation can be deleted; ready says which AI can answer', async ()
   const chats = (await app.inject({ method: 'GET', url: '/api/chats', headers: { cookie } })).json().chats;
   expect(chats.map((c: { title: string }) => c.title)).toEqual(['둘째 대화']);
 
-  expect((await app.inject({ method: 'GET', url: '/api/ai/ready', headers: { cookie } })).json()).toEqual({ claude: false, gpt: false, preferred: 'gpt' });
+  expect((await app.inject({ method: 'GET', url: '/api/ai/ready', headers: { cookie } })).json()).toEqual({ claude: false, gpt: false, preferred: 'gpt', gptMode: 'siwc' });
   deps.settings.keys.set('claude', 'sk-ant-' + 'a1'.repeat(12) + 'WXYZ');
   expect((await app.inject({ method: 'GET', url: '/api/ai/ready', headers: { cookie } })).json()).toMatchObject({ claude: true, preferred: 'claude' });
 });

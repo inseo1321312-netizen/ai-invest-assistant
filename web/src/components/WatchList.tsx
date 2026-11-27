@@ -23,7 +23,7 @@ function Row({ w, recent, spark, onOpen }: { w: QuoteView; recent: boolean; spar
   );
 }
 
-/** 홈 "자주 보는 종목": ★ 즐겨찾기 먼저, 그다음 최근 본 종목 */
+/** 홈 "즐겨찾기": 종목 화면에서 ☆을 누른 종목 */
 export function WatchList({ market, onOpen }: { market: MarketId; onOpen: (key: string) => void }) {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +42,7 @@ export function WatchList({ market, onOpen }: { market: MarketId; onOpen: (key: 
     return () => clearInterval(t);
   }, [load]);
 
-  const keysSig = data ? [...data.favorites, ...data.recent].map((w) => w.key).join(',') : '';
+  const keysSig = data ? data.favorites.map((w) => w.key).join(',') : '';
   useEffect(() => {
     if (!keysSig) return;
     let alive = true;
@@ -57,12 +57,12 @@ export function WatchList({ market, onOpen }: { market: MarketId; onOpen: (key: 
     load();
   }
 
-  const rows = data ? [...data.favorites.map((w) => ({ w, recent: false })), ...data.recent.map((w) => ({ w, recent: true }))] : [];
+  const rows = data ? data.favorites.map((w) => ({ w, recent: false })) : [];
 
   return (
-    <section aria-label="자주 보는 종목 영역">
+    <section aria-label="즐겨찾기 영역">
       <div className="section-head">
-        <h2 className="section-title">자주 보는 종목</h2>
+        <h2 className="section-title">즐겨찾기</h2>
         {data && data.favorites.length > 0 && (
           <button type="button" className="btn btn-ghost small" onClick={() => setEditing((v) => !v)}>{editing ? '완료' : '편집'}</button>
         )}
@@ -71,10 +71,10 @@ export function WatchList({ market, onOpen }: { market: MarketId; onOpen: (key: 
       {data?.errors.map((m) => <p key={m} className="notice">{m}</p>)}
       {!data && !error && <SkeletonList />}
       {data && rows.length === 0 && (
-        <p className="empty">검색해서 ★을 누르면 여기에 모여요. 종목 화면을 열면 최근 본 종목도 여기에 쌓여요.</p>
+        <p className="empty">종목 화면에서 ☆을 누르면 여기에 모여요</p>
       )}
       {rows.length > 0 && (
-        <ul className="list" aria-label="자주 보는 종목">
+        <ul className="list" aria-label="즐겨찾기">
           {rows.map(({ w, recent }) => (
             <li key={`${recent ? 'r' : 'f'}-${w.key}`} className={editing && !recent ? 'editing' : undefined}>
               <Row w={w} recent={recent} spark={spark[w.key]} onOpen={onOpen} />

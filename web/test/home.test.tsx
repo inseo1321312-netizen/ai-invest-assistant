@@ -115,20 +115,20 @@ describe('trending', () => {
 describe('watch list', () => {
   const view = (key: string, name: string) => ({ key, instrument: { market: 'coin', symbol: key.slice(5), kind: 'spot', exchange: null, name }, quote: quote(100, 2), krwValue: 140000, badge: null });
 
-  test('favorites first, then recently viewed', async () => {
+  test('the home list is 즐겨찾기: starred stocks only', async () => {
     mockServer({ '/api/market/coin/overview': () => overview({ favorites: [view('coin:BTC-USDT', '비트코인')], recent: [view('coin:ETH-USDT', '이더리움')] }), '/api/market/sparklines': () => ({ sparklines: {} }) });
     render(<WatchList market="coin" onOpen={() => {}} />);
-    const list = await screen.findByRole('list', { name: '자주 보는 종목' });
+    expect(await screen.findByRole('heading', { name: '즐겨찾기' })).toBeTruthy();
+    const list = await screen.findByRole('list', { name: '즐겨찾기' });
     const rows = within(list).getAllByRole('listitem');
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(1);
     expect(rows[0]!.textContent).toContain('비트코인');
-    expect(rows[1]!.textContent).toContain('이더리움');
-    expect(within(rows[1]!).getByText('최근 본 종목')).toBeTruthy();
+    expect(screen.queryByText(/자주 보는|최근 본 종목/)).toBeNull();
   });
 
   test('empty list explains how to fill it', async () => {
     mockServer({ '/api/market/kr/overview': () => overview() });
     render(<WatchList market="kr" onOpen={() => {}} />);
-    expect(await screen.findByText(/검색해서 ★을 누르면 여기에 모여요/)).toBeTruthy();
+    expect(await screen.findByText('종목 화면에서 ☆을 누르면 여기에 모여요')).toBeTruthy();
   });
 });

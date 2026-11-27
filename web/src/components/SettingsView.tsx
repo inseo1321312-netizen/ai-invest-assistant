@@ -3,6 +3,7 @@ import { api, ApiError, post } from '../api';
 import { useToast, usd } from '../ui';
 import { AlertSettings } from './AlertSettings';
 import { AiConnect, type KeyInfo } from './AiConnect';
+import { resetAiReady } from '../aiReady';
 import { AboutSettings, DataSettings, DisplaySettings } from './MoreSettings';
 
 const MENU: [string, string][] = [['set-display', '화면'], ['set-ai', 'AI'], ['set-alerts', '알림'], ['set-check', '연결 점검'], ['set-data', '데이터'], ['set-about', '앱 정보']];
@@ -153,7 +154,7 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
         </section>
       )}
 
-      {s && <AiConnect settings={s} siwc={siwc} onSettings={(v) => setS({ ...s, ...v })} onSiwcChange={loadSiwc} />}
+      {s && <AiConnect settings={s} siwc={siwc} onSettings={(v) => { resetAiReady(); setS({ ...s, ...v }); }} onSiwcChange={() => { resetAiReady(); loadSiwc(); }} />}
 
       {s && budgetText && (
         <section className="panel">
