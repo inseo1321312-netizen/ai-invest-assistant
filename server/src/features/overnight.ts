@@ -60,6 +60,8 @@ export interface OvernightFacts {
     btc: { from: number; to: number; pct: number; high: number; low: number } | null;
     usdkrw: number | null;
     kimchi: number | null;
+    /** 금·은·구리 선물(달러, 직전 대비 등락) */
+    metals?: { gold: { value: number; changePct: number | null } | null; silver: { value: number; changePct: number | null } | null; copper: { value: number; changePct: number | null } | null };
   };
   items: OvernightItemFacts[];
   news: { n: number; title: string; url: string; source: string | null; publishedAt: number; key: string | null }[];
@@ -139,6 +141,7 @@ async function gatherFacts(deps: OvernightDeps, fromMs: number, toMs: number): P
       spx: idx('spx'), nasdaq: idx('nasdaq'),
       btc: await nightMove(deps, BTC, fromMs, toMs, btcQuote?.price ?? null),
       usdkrw: ov('usdkrw')?.value ?? null, kimchi: ov('kimchi')?.value ?? null,
+      metals: { gold: idx('gold'), silver: idx('silver'), copper: idx('copper') },
     },
     items,
     news,
@@ -155,6 +158,7 @@ function factsText(f: OvernightFacts, fromMs: number, toMs: number): string {
     `S&P500 ${m.spx ? `${fmtNum(m.spx.value)} (${pct(m.spx.changePct)})` : '알 수 없음'}, 나스닥 ${m.nasdaq ? `${fmtNum(m.nasdaq.value)} (${pct(m.nasdaq.changePct)})` : '알 수 없음'} — 밤사이 미국 정규장 결과`,
     `비트코인 밤사이 ${m.btc ? `${fmtNum(m.btc.from)} → ${fmtNum(m.btc.to)} USDT (${pct(m.btc.pct)}, 최고 ${fmtNum(m.btc.high)}, 최저 ${fmtNum(m.btc.low)})` : '알 수 없음'}`,
     `원/달러 ${m.usdkrw === null ? '알 수 없음' : `${m.usdkrw.toFixed(1)}원`}, 김치 프리미엄 ${pct(m.kimchi)}`,
+    `원자재(선물, 달러): ${(['gold', 'silver', 'copper'] as const).map((k) => { const v = m.metals?.[k]; const label = { gold: '금', silver: '은', copper: '구리' }[k]; return v ? `${label} $${v.value.toLocaleString('en-US', { maximumFractionDigits: 2 })} (${pct(v.changePct)})` : `${label} 알 수 없음`; }).join(', ')}`,
     `[사용자 종목] ${f.items.length ? '' : '없음'}`,
     ...f.items.map((it) => {
       const label = `${it.key}${it.name ? ` (${it.name})` : ''}`;

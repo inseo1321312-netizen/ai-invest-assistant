@@ -25,7 +25,7 @@ export interface Overview { favorites: QuoteView[]; recent: QuoteView[]; usdKrw:
 
 export interface SearchHit { key: string; market: MarketId; name: string; symbol: string }
 export interface TrendItem { key: string; name: string; symbol: string; price: number; changePct: number; value: number | null; currency: Currency }
-export type OverviewId = 'kospi' | 'kosdaq' | 'spx' | 'nasdaq' | 'usdkrw' | 'fng' | 'kimchi';
+export type OverviewId = 'kospi' | 'kosdaq' | 'spx' | 'nasdaq' | 'usdkrw' | 'fng' | 'kimchi' | 'gold' | 'silver' | 'copper';
 export interface OverviewItem { id: OverviewId; label: string; value: number | null; changePct: number | null; note: string | null; open?: boolean | null }
 export interface NewsItem { title: string; url: string; source: string | null; publishedAt: number }
 export interface StockInfo { marketCap: number | null; per: number | null; pbr: number | null; eps: number | null; high52: number | null; low52: number | null; currency: 'KRW' | 'USD' }

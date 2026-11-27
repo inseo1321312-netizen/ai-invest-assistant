@@ -23,7 +23,7 @@ function recap(over: Record<string, unknown> = {}) {
     news: [{ n: 2, why: '비트코인 하락의 이유' }],
     today: ['9시 개장', '오늘 밤 美 고용지표'],
     facts: {
-      market: { spx: { value: 6012.5, changePct: 0.8 }, nasdaq: { value: 19250.1, changePct: 1.2 }, btc: { from: 96800, to: 94000, pct: -2.89, high: 97100, low: 93500 }, usdkrw: 1338.2, kimchi: 0.57 },
+      market: { spx: { value: 6012.5, changePct: 0.8 }, nasdaq: { value: 19250.1, changePct: 1.2 }, btc: { from: 96800, to: 94000, pct: -2.89, high: 97100, low: 93500 }, usdkrw: 1338.2, kimchi: 0.57, metals: { gold: { value: 3671, changePct: 3.82 }, silver: { value: 43.72, changePct: -1.2 }, copper: { value: 5.5635, changePct: 0.4 } } },
       items: [
         { key: BTC, name: '비트코인', market: 'coin', price: 94000, fromPrice: 96800, currency: 'USDT', pct: -2.89, kind: 'night', extended: null },
         { key: AAPL, name: '애플', market: 'us', price: 361.2, fromPrice: 355.1, currency: 'USD', pct: 1.72, kind: 'session', extended: null },
@@ -73,6 +73,8 @@ describe('밤사이 tab', () => {
     expect(market.textContent).toContain('-2.9%');
     expect(market.textContent).toContain('최고 97,100');
     expect(market.textContent).toContain('1,338.2원');
+    expect(within(market).getByRole('group', { name: '금' }).textContent).toMatch(/\$3,671.*\+3\.82%/);
+    expect(within(market).getByRole('group', { name: '구리' }).textContent).toContain('$5.56');
 
     const mine = within(view).getByRole('region', { name: '내 종목 밤사이' });
     expect(mine.textContent).toContain('$355.10 → $361.20');

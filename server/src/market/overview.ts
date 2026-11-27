@@ -2,7 +2,7 @@
 import type { KisClient } from './kis.js';
 import type { Sentiment } from './sentiment.js';
 
-export type OverviewId = 'kospi' | 'kosdaq' | 'spx' | 'nasdaq' | 'usdkrw' | 'fng' | 'kimchi';
+export type OverviewId = 'kospi' | 'kosdaq' | 'spx' | 'nasdaq' | 'usdkrw' | 'fng' | 'kimchi' | 'gold' | 'silver' | 'copper';
 /** open: 지수 시장이 열려 있는지(모르면 null) */
 export interface OverviewItem { id: OverviewId; label: string; value: number | null; changePct: number | null; note: string | null; open: boolean | null }
 
@@ -17,13 +17,16 @@ export function createMarketOverview(deps: {
   upbit: { krwPrices(): Promise<Map<string, number>> };
   okx: { getQuote(instId: string): Promise<{ price: number }> };
   now: () => number;
+  /** 금·은·구리 선물 시세(네이버). 없으면 그 칸은 빈다 */
+  metals?: ((code: 'GCcv1' | 'SIcv1' | 'HGcv1') => Promise<{ value: number; changePct: number; open?: boolean }>) | null;
 }): MarketOverview {
   let cached: { at: number; items: Promise<OverviewItem[]> } | null = null;
   const safe = <T>(p: Promise<T>): Promise<T | null> => p.catch(() => null);
 
   async function load(): Promise<OverviewItem[]> {
     const k = deps.kis;
-    const [kospi, kosdaq, spx, nasdaq, fx, fng, upbit, okxBtc] = await Promise.all([
+    const metal = (c: 'GCcv1' | 'SIcv1' | 'HGcv1') => (deps.metals ? safe(deps.metals(c)) : null);
+    const [kospi, kosdaq, spx, nasdaq, fx, fng, upbit, okxBtc, gold, silver, copper] = await Promise.all([
       k ? safe(k.getIndex('0001')) : null,
       k ? safe(k.getIndex('1001')) : null,
       k ? safe(k.getUsIndex('SPX')) : null,
@@ -32,6 +35,7 @@ export function createMarketOverview(deps: {
       safe(deps.sentiment()),
       safe(deps.upbit.krwPrices()),
       safe(deps.okx.getQuote('BTC-USDT')),
+      metal('GCcv1'), metal('SIcv1'), metal('HGcv1'),
     ]);
     const idx = (id: OverviewId, label: string, q: { value: number; changePct: number; open?: boolean } | null): OverviewItem => ({
       id, label, value: q && q.value > 0 ? q.value : null, changePct: q && q.value > 0 ? q.changePct : null, note: null, open: q?.open ?? null,
@@ -46,6 +50,9 @@ export function createMarketOverview(deps: {
       { id: 'usdkrw', label: '원/달러', value: fx, changePct: null, note: null, open: null },
       { id: 'fng', label: '공포·탐욕', value: fng?.value ?? null, changePct: null, note: fng?.label ?? null, open: null },
       { id: 'kimchi', label: '김치 프리미엄', value: kimchi, changePct: null, note: null, open: null },
+      idx('gold', '금', gold),
+      idx('silver', '은', silver),
+      idx('copper', '구리', copper),
     ];
   }
 

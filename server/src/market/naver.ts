@@ -10,7 +10,9 @@ import { BAR_SECONDS } from './types.js';
 
 export type StockSource = Pick<KisClient, 'getQuote' | 'getCandles' | 'getRanking' | 'getIndex' | 'getUsIndex' | 'getBasicInfo'>;
 /** 네이버 클라이언트: 시세 출처 + 미국 기호의 네이버 코드(로고 주소에 쓴다) */
-export type NaverClient = StockSource & { usCode(inst: Instrument): Promise<string> };
+/** 금·은·구리 선물(네이버 시장지표 코드) */
+export type MetalCode = 'GCcv1' | 'SIcv1' | 'HGcv1';
+export type NaverClient = StockSource & { usCode(inst: Instrument): Promise<string>; getMetal(code: MetalCode): Promise<IndexQuote> };
 
 const UA = { 'user-agent': 'Mozilla/5.0', accept: 'application/json' };
 const RANK_LIMIT = 20;
@@ -236,6 +238,12 @@ export function createNaverClient(deps: { fetch: typeof fetch; now?: () => numbe
     async getIndex(code) {
       const d = await realtime(`domestic/index/${KR_INDEX[code]}`);
       return { value: num(d.closePrice), changePct: signedPct(d.fluctuationsRatio, d.compareToPreviousPrice?.code), ...openOf(d) } satisfies IndexQuote;
+    },
+
+    async getMetal(code) {
+      const d = await get<Realtime & { fluctuationsType?: { code?: string } }>(`https://api.stock.naver.com/marketindex/metals/${code}`);
+      if (!d.closePrice) throw new Error('시세 없음');
+      return { value: num(d.closePrice), changePct: signedPct(d.fluctuationsRatio, d.fluctuationsType?.code), ...openOf(d) };
     },
 
     async getUsIndex(symbol) {

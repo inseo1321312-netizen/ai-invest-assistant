@@ -154,3 +154,17 @@ describe('fear & greed', () => {
     expect((await screen.findByRole('group', { name: '공포·탐욕' })).className).toContain('fng-greed-x');
   });
 });
+
+describe('metals', () => {
+  test('gold, silver and copper show in dollars with their change', async () => {
+    mockServer({ '/api/market-overview': () => ({ items: [
+      { id: 'gold', label: '금', value: 3671, changePct: 3.82, note: null },
+      { id: 'silver', label: '은', value: 43.72, changePct: -1.2, note: null },
+      { id: 'copper', label: '구리', value: 5.5635, changePct: 0.4, note: null },
+    ] }) });
+    render(<MarketOverview />);
+    expect((await screen.findByRole('group', { name: '금' })).textContent).toMatch(/\$3,671.*\+3\.82%/);
+    expect(screen.getByRole('group', { name: '은' }).textContent).toMatch(/\$43\.72.*-1\.20%/);
+    expect(screen.getByRole('group', { name: '구리' }).textContent).toContain('$5.56');
+  });
+});

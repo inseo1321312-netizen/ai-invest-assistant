@@ -64,6 +64,9 @@ function setup(script: FakeStep[][], opts: { holdings?: string[]; favorites?: st
     { id: 'nasdaq', label: '나스닥', value: 19250.1, changePct: 1.2, note: null, open: false },
     { id: 'usdkrw', label: '원/달러', value: 1338.2, changePct: null, note: null, open: null },
     { id: 'kimchi', label: '김치 프리미엄', value: 0.57, changePct: null, note: null, open: null },
+    { id: 'gold', label: '금', value: 3671, changePct: 3.82, note: null, open: true },
+    { id: 'silver', label: '은', value: 43.72, changePct: -1.2, note: null, open: true },
+    { id: 'copper', label: '구리', value: 5.5635, changePct: 0.4, note: null, open: true },
   ] as never };
   const deps = { db, market, runAi: ai.runAi, now: () => NOW, news, overview, provider: 'claude' as const, instruments: { nameOf: (k: string) => NAMES[k] ?? null } };
   return { db, ai, deps, args: { from, to: NOW, day: '2026-11-28', origin: 'scheduled' as const } };
@@ -95,6 +98,8 @@ describe('runOvernight', () => {
     expect(r.facts.market.btc).toMatchObject({ from: 96800, to: 94000 });
     expect(r.facts.market.nasdaq).toEqual({ value: 19250.1, changePct: 1.2 });
     expect(r.facts.market.usdkrw).toBe(1338.2);
+    expect(r.facts.market.metals).toEqual({ gold: { value: 3671, changePct: 3.82 }, silver: { value: 43.72, changePct: -1.2 }, copper: { value: 5.5635, changePct: 0.4 } });
+    expect(s.ai.requests[0]!.userText).toContain('금 $3,671');
     expect(r.facts.news.map((n) => n.url)).toEqual(['https://n/1']);
     const text = s.ai.requests[0]!.userText;
     expect(text).toContain('비트코인 ETF 자금 유출');

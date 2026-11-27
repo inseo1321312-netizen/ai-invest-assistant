@@ -14,6 +14,7 @@ interface Facts {
     btc: { from: number; to: number; pct: number; high: number; low: number } | null;
     usdkrw: number | null;
     kimchi: number | null;
+    metals?: Record<'gold' | 'silver' | 'copper', { value: number; changePct: number | null } | null>;
   };
   items: ItemFacts[];
   news: { n: number; title: string; url: string; source: string | null; publishedAt: number; key: string | null }[];
@@ -187,6 +188,21 @@ function RecapBody({ r, onOpen }: { r: Recap; onOpen: (key: string) => void }) {
           <div className="on-cell"><span>원/달러</span><b className="num">{m.usdkrw === null ? '—' : `${m.usdkrw.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원`}</b></div>
           <div className="on-cell"><span>김치 프리미엄</span><b className={`num ${changeClass(m.kimchi)}`}>{signed(m.kimchi, 2)}</b></div>
         </div>
+        {m.metals && (
+          <div className="on-metals">
+            {(['gold', 'silver', 'copper'] as const).map((k) => {
+              const v = m.metals![k];
+              const label = { gold: '금', silver: '은', copper: '구리' }[k];
+              return (
+                <div key={k} className="on-cell" role="group" aria-label={label}>
+                  <span>{label}</span>
+                  <b className="num">{v ? `$${v.value.toLocaleString('en-US', { maximumFractionDigits: 2 })}` : '—'}</b>
+                  <em className={`num ${changeClass(v?.changePct)}`}>{signed(v?.changePct, 2)}</em>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {r.facts.items.length > 0 && (

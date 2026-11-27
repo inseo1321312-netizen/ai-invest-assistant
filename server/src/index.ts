@@ -87,7 +87,7 @@ async function main() {
   const trending = createTrending({ okx, kis: stocks, instruments, now });
   const news = createNews({ fetch, now });
   const instrumentInfo = createInstrumentInfo({ kis: stocks, okx, upbit, fx: () => getUsdKrw({ db, now }), now });
-  const overview = createMarketOverview({ kis: stocks, fx: () => getUsdKrw({ db, now }), sentiment, upbit, okx, now });
+  const overview = createMarketOverview({ kis: stocks, fx: () => getUsdKrw({ db, now }), sentiment, upbit, okx, now, metals: (c) => naver.getMetal(c) });
   const siwc = createSiwcTokenStore({ db, now });
   const budget = createBudget(db, now);
   const keys = createApiKeys({ db, secret: config.sessionSecret, env: { claude: config.anthropicApiKey, openai: config.openaiApiKey } });

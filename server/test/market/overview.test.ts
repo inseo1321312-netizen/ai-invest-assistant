@@ -13,14 +13,16 @@ const base = {
   sentiment: async () => ({ value: 11, label: '극도의 공포', updatedAt: 0 }),
   upbit: { krwPrices: async () => new Map([['BTC', 82625000]]) },
   okx: { getQuote: async () => ({ price: 60673 }) },
+  metals: async (code: string) => ({ value: ({ GCcv1: 3671, SIcv1: 43.72, HGcv1: 5.5635 } as Record<string, number>)[code]!, changePct: 1 }),
 };
 
 test('all items, with the kimchi premium from Upbit, OKX and the exchange rate', async () => {
   const items = await createMarketOverview({ ...base, now: makeClock().now }).get();
-  expect(items.map((i) => i.id)).toEqual(['kospi', 'kosdaq', 'spx', 'nasdaq', 'usdkrw', 'fng', 'kimchi']);
-  expect(items.map((i) => i.label)).toEqual(['코스피', '코스닥', 'S&P500', '나스닥', '원/달러', '공포·탐욕', '김치 프리미엄']);
+  expect(items.map((i) => i.id)).toEqual(['kospi', 'kosdaq', 'spx', 'nasdaq', 'usdkrw', 'fng', 'kimchi', 'gold', 'silver', 'copper']);
+  expect(items.map((i) => i.label)).toEqual(['코스피', '코스닥', 'S&P500', '나스닥', '원/달러', '공포·탐욕', '김치 프리미엄', '금', '은', '구리']);
   expect(items[0]).toMatchObject({ value: 2650, changePct: 0.4 });
   expect(items[5]).toMatchObject({ value: 11, note: '극도의 공포' });
+  expect(items.slice(7).map((i) => i.value)).toEqual([3671, 43.72, 5.5635]);
   expect(items[6]!.value).toBeCloseTo((82625000 / (60673 * 1345) - 1) * 100, 6);
 });
 

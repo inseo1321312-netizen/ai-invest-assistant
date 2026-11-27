@@ -192,3 +192,13 @@ test('withFallback uses the first source and falls back on errors', async () => 
   expect(await s.getQuote()).toBe('naver');
   expect(await s.ok()).toBe('kis');
 });
+
+test('gold, silver and copper futures from Naver market index, with the sign from the change type', async () => {
+  const f = fakeFetch({
+    '/marketindex/metals/GCcv1': () => ({ name: '국제 금', closePrice: '3,671.00', fluctuationsRatio: '3.82', fluctuationsType: { code: '2' }, marketStatus: 'OPEN' }),
+    '/marketindex/metals/SIcv1': () => ({ name: '은', closePrice: '43.72', fluctuationsRatio: '1.20', fluctuationsType: { code: '5' }, marketStatus: 'CLOSE' }),
+  });
+  const c = client(f);
+  expect(await c.getMetal('GCcv1')).toEqual({ value: 3671, changePct: 3.82, open: true });
+  expect(await c.getMetal('SIcv1')).toEqual({ value: 43.72, changePct: -1.2, open: false });
+});

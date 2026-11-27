@@ -14,6 +14,8 @@ function valueText(it: OverviewItem): string {
   if (it.id === 'usdkrw') return `${it.value.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원`;
   if (it.id === 'fng') return String(Math.round(it.value));
   if (it.id === 'kimchi') return signed(it.value);
+  // 금·은·구리 선물: 달러(금·은 온스, 구리 파운드)
+  if (it.id === 'gold' || it.id === 'silver' || it.id === 'copper') return `$${it.value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
   return it.value.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
@@ -48,7 +50,7 @@ function Tile({ it: raw, now }: { it: OverviewItem; now: Date }) {
   );
 }
 
-/** 홈 맨 위: 지수, 환율, 공포·탐욕, 김치 프리미엄. 1분마다 새로 고친다. */
+/** 홈 맨 위: 지수, 환율, 김치 프리미엄, 금·은·구리, 공포·탐욕. 1분마다 새로 고친다. */
 export function MarketOverview() {
   const [items, setItems] = useState<OverviewItem[] | null>(null);
   const [now, setNow] = useState(() => new Date());

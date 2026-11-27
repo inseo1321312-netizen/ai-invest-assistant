@@ -960,3 +960,5 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .on-switch { display: flex; align-items: center; gap: 10px; margin: 14px 0 4px; font-weight: 700; color: var(--ink-2); }
 .on-switch input { width: 22px; height: 22px; accent-color: var(--ai); }
 .field select { appearance: none; -webkit-appearance: none; }
+.on-metals { margin: 0 var(--gutter); display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 12px; }
+.on-metals .on-cell b { font-size: 16px; }
