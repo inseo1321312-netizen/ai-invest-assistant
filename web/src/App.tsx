@@ -3,7 +3,6 @@ import { motionOk, navigate } from './motion';
 import { PULL_TRIGGER, useNetwork, usePullToRefresh } from './gestures';
 import { api, ApiError, setUnauthorizedHandler } from './api';
 import { ChatView } from './components/ChatView';
-import { CompareView } from './components/CompareView';
 import { NewsTicker } from './components/NewsTicker';
 import { Holdings } from './components/Holdings';
 import { InstrumentView } from './components/InstrumentView';
@@ -22,7 +21,7 @@ import { watchViewport } from './viewport';
 
 export { Disclaimer };
 
-type Tab = 'home' | 'compare' | 'chat' | 'settings';
+type Tab = 'home' | 'chat' | 'settings';
 
 function todayLabel(): string {
   return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
@@ -105,8 +104,6 @@ function Shell() {
   }, []);
   const [instrument, setInstrument] = useState<string | null>(null);
   const [chatKey, setChatKey] = useState<string | null>(null);
-  const [compareSeed, setCompareSeed] = useState<string | null>(null);
-  const [chatDraft, setChatDraft] = useState<{ id: number; text: string } | null>(null);
 
   // 키보드가 가린 만큼을 CSS에 알린다(입력창·시트가 키보드 위에 붙게)
   useEffect(() => watchViewport(), []);
@@ -123,23 +120,18 @@ function Shell() {
     if (t === tab && !instrument) { window.scrollTo({ top: 0, behavior: motionOk() ? 'smooth' : 'auto' }); return; }
     navigate(instrument && t === tab ? 'back' : 'tab', () => {
       setInstrument(null);
-      if (t === 'chat') { setChatKey(null); setChatDraft(null); }
-      if (t === 'compare') setCompareSeed(null);
+      if (t === 'chat') setChatKey(null);
       setTab(t);
     });
   }
 
   let body;
-  if ((tab === 'home' || tab === 'compare') && instrument) {
-    body = <InstrumentView key={instrument} keyId={instrument} onClose={() => navigate('back', () => setInstrument(null))} onChat={(k) => navigate('forward', () => { setChatDraft(null); setChatKey(k); setTab('chat'); })}
-      onCompare={(k) => navigate('tab', () => { setInstrument(null); setCompareSeed(k); setTab('compare'); })} />;
+  if (tab === 'home' && instrument) {
+    body = <InstrumentView key={instrument} keyId={instrument} onClose={() => navigate('back', () => setInstrument(null))} onChat={(k) => navigate('forward', () => { setChatKey(k); setTab('chat'); })} />;
   } else if (tab === 'home') {
     body = <Home onOpen={open} />;
-  } else if (tab === 'compare') {
-    body = <CompareView key={compareSeed ?? 'none'} seed={compareSeed} onOpen={(k) => navigate('forward', () => setInstrument(k))}
-      onAsk={(text) => navigate('tab', () => { setChatKey(null); setChatDraft({ id: Date.now(), text }); setTab('chat'); })} />;
   } else if (tab === 'chat') {
-    body = <ChatView key={chatKey ?? (chatDraft ? `draft-${chatDraft.id}` : 'all')} keyId={chatKey} draft={chatDraft?.text} onClose={chatKey ? () => navigate('back', () => { setTab('home'); setInstrument(chatKey); }) : undefined} />;
+    body = <ChatView key={chatKey ?? 'all'} keyId={chatKey} onClose={chatKey ? () => navigate('back', () => { setTab('home'); setInstrument(chatKey); }) : undefined} />;
   } else {
     body = <SettingsView />;
   }
@@ -149,9 +141,8 @@ function Shell() {
       <NetworkBar />
       {body}
       {tab !== 'chat' && <Disclaimer />}
-      <nav className="bottom-nav" aria-label="메뉴" style={{ '--i': ['home', 'compare', 'chat', 'settings'].indexOf(tab) } as CSSProperties}>
+      <nav className="bottom-nav" aria-label="메뉴" style={{ '--i': ['home', 'chat', 'settings'].indexOf(tab) } as CSSProperties}>
         <button type="button" aria-current={tab === 'home' ? 'page' : undefined} onClick={() => go('home')}><Icon.home />홈</button>
-        <button type="button" aria-current={tab === 'compare' ? 'page' : undefined} onClick={() => go('compare')}><Icon.compare />비교</button>
         <button type="button" aria-current={tab === 'chat' ? 'page' : undefined} onClick={() => go('chat')}><Icon.chat />AI 상담</button>
         <button type="button" aria-current={tab === 'settings' ? 'page' : undefined} onClick={() => go('settings')}><Icon.settings />설정</button>
       </nav>
