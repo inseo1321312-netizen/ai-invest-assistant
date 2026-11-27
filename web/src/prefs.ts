@@ -1,10 +1,12 @@
+import { setPriceUnit } from './format';
 /** 이 기기에만 저장하는 화면 설정 */
 export type Theme = 'system' | 'light' | 'dark';
 export type UpDown = 'kr' | 'global';
-export interface Prefs { theme: Theme; updown: UpDown }
+export type Unit = 'native' | 'krw';
+export interface Prefs { theme: Theme; updown: UpDown; unit: Unit }
 
 const KEY = 'prefs';
-const DEFAULTS: Prefs = { theme: 'system', updown: 'kr' };
+const DEFAULTS: Prefs = { theme: 'system', updown: 'kr', unit: 'native' };
 
 export function readPrefs(): Prefs {
   try {
@@ -12,6 +14,7 @@ export function readPrefs(): Prefs {
     return {
       theme: v?.theme === 'light' || v?.theme === 'dark' ? v.theme : 'system',
       updown: v?.updown === 'global' ? 'global' : 'kr',
+      unit: v?.unit === 'krw' ? 'krw' : 'native',
     };
   } catch {
     return { ...DEFAULTS };
@@ -28,6 +31,7 @@ export function applyPrefs(p: Prefs, doc: Document = document): void {
   if (p.theme === 'system') delete root.dataset.theme;
   else root.dataset.theme = p.theme;
   root.dataset.updown = p.updown;
+  setPriceUnit(p.unit);
   // 상태 막대 색도 맞춘다
   const dark = p.theme === 'dark' || (p.theme === 'system' && typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches);
   for (const m of doc.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {

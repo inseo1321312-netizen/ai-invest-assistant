@@ -4,6 +4,7 @@ import { api, ApiError } from '../api';
 import { bollinger, macd, rsi, sma } from '../indicators';
 import { bigMoves } from '../bigMoves';
 import type { Bar, Candle } from '../types';
+import { formatPrice, wonMode } from '../format';
 
 /** 차트 라이브러리는 UTC로 그리므로 한국 시간으로 보이게 9시간 밀어서 넣고, 클릭하면 되돌린다. */
 const KST = 9 * 3600;
@@ -68,7 +69,8 @@ export function CandleChart({ keyId, bar, onPointClick, markers = [], height = 3
           crosshair: { mode: 1 },
           handleScroll: { vertTouchDrag: false, mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true },
           handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: true },
-          localization: { locale: 'ko-KR' },
+          // 원화 단위면 가격 눈금도 원으로
+          localization: { locale: 'ko-KR', ...(wonMode() && !keyId.startsWith('kr:') ? { priceFormatter: (p: number) => formatPrice(p, keyId.startsWith('us:') ? 'USD' : 'USDT') } : {}) },
         });
         const t = (s: number) => (s + KST) as UTCTimestamp;
         const closes = candles.map((c) => c.close);

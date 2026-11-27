@@ -12,7 +12,8 @@ import { SearchSheet } from './components/SearchSheet';
 import { Trending } from './components/Trending';
 import { WatchList } from './components/WatchList';
 import { SettingsView } from './components/SettingsView';
-import type { MarketId } from './types';
+import type { MarketId, OverviewItem } from './types';
+import { setUsdKrw } from './format';
 import { Icon } from './ui';
 
 export function Disclaimer() {
@@ -94,6 +95,19 @@ function NetworkBar() {
 
 function Shell() {
   const [tab, setTab] = useState<Tab>('home');
+  const [, setFxTick] = useState(0);
+
+  // 원화 단위로 보여 줄 때 쓸 환율(10분마다)
+  useEffect(() => {
+    let alive = true;
+    const load = () => api<{ items: OverviewItem[] }>('/api/market-overview').then((r) => {
+      const rate = r.items.find((i) => i.id === 'usdkrw')?.value ?? null;
+      if (alive && rate) { setUsdKrw(rate); setFxTick((n) => n + 1); }
+    }).catch(() => undefined);
+    void load();
+    const t = setInterval(load, 10 * 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
   const [instrument, setInstrument] = useState<string | null>(null);
   const [chatKey, setChatKey] = useState<string | null>(null);
 

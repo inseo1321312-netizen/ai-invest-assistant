@@ -1,7 +1,23 @@
 import type { Currency, Horizon, MarketId } from './types';
 
+/** 가격 단위: 원래 단위 또는 원화(달러·USDT를 환율로 바꿔 보여 준다) */
+let priceUnit: 'native' | 'krw' = 'native';
+let usdKrw: number | null = null;
+export function setPriceUnit(u: 'native' | 'krw'): void { priceUnit = u; }
+export function setUsdKrw(rate: number | null): void { usdKrw = rate && rate > 0 ? rate : null; }
+/** 지금 원화로 바꿔 보여 주는 중인지 */
+export const wonMode = (): boolean => priceUnit === 'krw' && usdKrw !== null;
+
+function formatWon(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 100) return `${Math.round(v).toLocaleString('ko-KR')}원`;
+  if (abs >= 1) return `${v.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}원`;
+  return `${v.toLocaleString('ko-KR', { maximumSignificantDigits: 3 })}원`;
+}
+
 export function formatPrice(n: number, currency: Currency): string {
   if (currency === 'KRW') return `${Math.round(n).toLocaleString('ko-KR')}원`;
+  if (priceUnit === 'krw' && usdKrw) return formatWon(n * usdKrw);
   const abs = Math.abs(n);
   const opts: Intl.NumberFormatOptions = abs >= 100
     ? { maximumFractionDigits: 2 }

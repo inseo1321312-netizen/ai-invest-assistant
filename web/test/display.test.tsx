@@ -13,7 +13,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 test('defaults follow the phone and use Korean colors', () => {
-  expect(readPrefs()).toEqual({ theme: 'system', updown: 'kr' });
+  expect(readPrefs()).toEqual({ theme: 'system', updown: 'kr', unit: 'native' });
   applyPrefs(readPrefs());
   expect(document.documentElement.dataset.theme).toBeUndefined();
   expect(document.documentElement.dataset.updown).toBe('kr');

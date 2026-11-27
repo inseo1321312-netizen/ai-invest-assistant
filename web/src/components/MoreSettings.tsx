@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { themeTransition } from '../motion';
 import { api } from '../api';
-import { applyPrefs, readPrefs, savePrefs, type Prefs, type Theme, type UpDown } from '../prefs';
+import { applyPrefs, readPrefs, savePrefs, type Prefs, type Theme, type UpDown, type Unit } from '../prefs';
 import { Segmented, useToast } from '../ui';
 
 /** 화면: 다크·라이트 모드, 상승·하락 색 */
@@ -24,6 +24,9 @@ export function DisplaySettings() {
       <p className="set-label">상승·하락 색</p>
       <Segmented small kind="radio" label="상승 하락 색" value={p.updown} onChange={(updown: UpDown) => update({ ...p, updown })}
         options={[{ value: 'kr', label: '빨강 상승' }, { value: 'global', label: '초록 상승' }]} />
+      <p className="set-label">가격 단위</p>
+      <Segmented small kind="radio" label="가격 단위" value={p.unit} onChange={(unit: Unit) => update({ ...p, unit })}
+        options={[{ value: 'native', label: '달러 그대로' }, { value: 'krw', label: '원화' }]} />
       </div>
     </section>
   );
