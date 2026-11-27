@@ -14,13 +14,13 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       manifest: {
-        name: 'AI 투자 비서',
-        short_name: '투자 비서',
+        name: 'inzu',
+        short_name: 'inzu',
         lang: 'ko',
         display: 'standalone',
         start_url: '/',
         background_color: '#F4F6F9',
-        theme_color: '#16202E',
+        theme_color: '#0B0E1F',
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },

@@ -13,7 +13,7 @@ export const SIWC_AUTHORIZE_URL = 'https://auth.openai.com/api/accounts/authoriz
 export const SIWC_TOKEN_URL = 'https://auth.openai.com/api/accounts/oauth/token';
 /** 처음 로그인할 때만 쓰는 동적 등록 client_id. 콜백이 oaiapp_… 형태의 실제 client_id를 돌려준다. */
 export const SIWC_DYNAMIC_CLIENT_ID = 'dynamic_agent_client';
-export const SIWC_AGENT_NAME = 'AI 투자 비서 (open source)';
+export const SIWC_AGENT_NAME = 'inzu (open source)';
 export const SIWC_RESOURCE = 'https://api.openai.com/v1';
 export const SIWC_PLAN_SCOPE = 'chatgpt.tokens.use.direct';
 export const SIWC_SCOPES = ['openid', 'profile', 'email', 'offline_access', 'resource.invoke', SIWC_PLAN_SCOPE];

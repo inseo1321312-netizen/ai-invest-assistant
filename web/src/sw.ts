@@ -13,7 +13,7 @@ self.addEventListener('activate', (event) => { event.waitUntil(self.clients.clai
 self.addEventListener('push', (event) => {
   let data: { title?: string; body?: string; url?: string } = {};
   try { data = event.data?.json() ?? {}; } catch { data = { title: event.data?.text() }; }
-  event.waitUntil(self.registration.showNotification(data.title ?? '투자 비서', {
+  event.waitUntil(self.registration.showNotification(data.title ?? 'inzu', {
     body: data.body ?? '',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
