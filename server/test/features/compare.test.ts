@@ -146,3 +146,41 @@ describe('runCompare', () => {
     expect(h[0]).toMatchObject({ keys: [BTC, ETH], horizon: 'swing', provider: 'claude', pick: ETH });
   });
 });
+
+describe('compare routes', () => {
+  async function app() {
+    const { buildApp } = await import('../../src/app.js');
+    const { loginCookie, testDeps } = await import('../helpers.js');
+    const deps = testDeps();
+    const a = await buildApp(deps);
+    return { a, deps, cookie: await loginCookie(a) };
+  }
+
+  test('one item, five items or the same item twice is a bad request', async () => {
+    const { a, cookie } = await app();
+    for (const keys of [[BTC], [BTC, ETH, 'coin:SOL-USDT', 'coin:XRP-USDT', 'coin:DOGE-USDT'], [BTC, BTC]]) {
+      const r = await a.inject({ method: 'POST', url: '/api/compare', headers: { cookie }, payload: { keys, horizon: 'swing', provider: 'claude' } });
+      expect(r.statusCode).toBe(400);
+    }
+  });
+
+  test('quick picks: holdings first, then favorites, each once', async () => {
+    const { a, deps, cookie } = await app();
+    deps.db.sql.prepare('INSERT INTO holdings (key, market, quantity, avg_price, added_at) VALUES (?, ?, ?, ?, ?)').run('kr:005930', 'kr', 10, null, 1);
+    deps.db.sql.prepare('INSERT INTO watchlist (key, market, added_at) VALUES (?, ?, ?)').run('kr:005930', 'kr', 2);
+    deps.db.sql.prepare('INSERT INTO watchlist (key, market, added_at) VALUES (?, ?, ?)').run(BTC, 'coin', 3);
+    const r = await a.inject({ method: 'GET', url: '/api/compare/suggest', headers: { cookie } });
+    expect(r.json().items.map((i: { key: string; source: string }) => [i.key, i.source])).toEqual([['kr:005930', 'holding'], [BTC, 'favorite']]);
+  });
+
+  test('history and one result; a missing one is 404', async () => {
+    const { a, deps, cookie } = await app();
+    deps.db.sql.prepare('INSERT INTO comparisons (set_key, keys_json, horizon, provider, model, body_json, facts_json, names_json, created_at, cost_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('x', JSON.stringify([BTC, ETH]), 'swing', 'gpt', 'm', JSON.stringify({ pick: BTC, confidence: '중간', summary: 's', ranking: [] }), '{}', '{}', 5, 0);
+    const h = (await a.inject({ method: 'GET', url: '/api/compare/history', headers: { cookie } })).json().items;
+    expect(h).toHaveLength(1);
+    const one = await a.inject({ method: 'GET', url: `/api/compare/${h[0].id}`, headers: { cookie } });
+    expect(one.json().result).toMatchObject({ pick: BTC, keys: [BTC, ETH] });
+    expect((await a.inject({ method: 'GET', url: '/api/compare/999', headers: { cookie } })).statusCode).toBe(404);
+  });
+});
