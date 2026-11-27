@@ -3,6 +3,7 @@ import { motionOk, navigate } from './motion';
 import { PULL_TRIGGER, useNetwork, usePullToRefresh } from './gestures';
 import { api, ApiError, setUnauthorizedHandler } from './api';
 import { ChatView } from './components/ChatView';
+import { OvernightView } from './components/OvernightView';
 import { NewsTicker } from './components/NewsTicker';
 import { Holdings } from './components/Holdings';
 import { InstrumentView } from './components/InstrumentView';
@@ -21,7 +22,16 @@ import { watchViewport } from './viewport';
 
 export { Disclaimer };
 
-type Tab = 'home' | 'chat' | 'settings';
+type Tab = 'home' | 'overnight' | 'chat' | 'settings';
+
+/** 알림을 눌러 열면(/?tab=overnight) 그 탭으로 시작한다 */
+function startTab(): Tab {
+  try {
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (t === 'overnight') { window.history.replaceState(null, '', window.location.pathname); return t; }
+  } catch { /* 기본 */ }
+  return 'home';
+}
 
 function todayLabel(): string {
   return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
@@ -88,7 +98,7 @@ function NetworkBar() {
 }
 
 function Shell() {
-  const [tab, setTab] = useState<Tab>('home');
+  const [tab, setTab] = useState<Tab>(startTab);
   const [, setFxTick] = useState(0);
 
   // 원화 단위로 보여 줄 때 쓸 환율(10분마다)
@@ -126,10 +136,12 @@ function Shell() {
   }
 
   let body;
-  if (tab === 'home' && instrument) {
+  if ((tab === 'home' || tab === 'overnight') && instrument) {
     body = <InstrumentView key={instrument} keyId={instrument} onClose={() => navigate('back', () => setInstrument(null))} onChat={(k) => navigate('forward', () => { setChatKey(k); setTab('chat'); })} />;
   } else if (tab === 'home') {
     body = <Home onOpen={open} />;
+  } else if (tab === 'overnight') {
+    body = <OvernightView onOpen={(k) => navigate('forward', () => setInstrument(k))} />;
   } else if (tab === 'chat') {
     body = <ChatView key={chatKey ?? 'all'} keyId={chatKey} onClose={chatKey ? () => navigate('back', () => { setTab('home'); setInstrument(chatKey); }) : undefined} />;
   } else {
@@ -141,8 +153,9 @@ function Shell() {
       <NetworkBar />
       {body}
       {tab !== 'chat' && <Disclaimer />}
-      <nav className="bottom-nav" aria-label="메뉴" style={{ '--i': ['home', 'chat', 'settings'].indexOf(tab) } as CSSProperties}>
+      <nav className="bottom-nav" aria-label="메뉴" style={{ '--i': ['home', 'overnight', 'chat', 'settings'].indexOf(tab) } as CSSProperties}>
         <button type="button" aria-current={tab === 'home' ? 'page' : undefined} onClick={() => go('home')}><Icon.home />홈</button>
+        <button type="button" aria-current={tab === 'overnight' ? 'page' : undefined} onClick={() => go('overnight')}><Icon.moon />밤사이</button>
         <button type="button" aria-current={tab === 'chat' ? 'page' : undefined} onClick={() => go('chat')}><Icon.chat />AI 상담</button>
         <button type="button" aria-current={tab === 'settings' ? 'page' : undefined} onClick={() => go('settings')}><Icon.settings />설정</button>
       </nav>
