@@ -15,24 +15,16 @@ import { WatchList } from './components/WatchList';
 import { SettingsView } from './components/SettingsView';
 import type { MarketId, OverviewItem } from './types';
 import { setUsdKrw } from './format';
-import { Icon } from './ui';
+import { Disclaimer, Icon } from './ui';
+import { greeting } from './greeting';
+import { watchViewport } from './viewport';
 
-export function Disclaimer() {
-  return <p className="disclaimer">투자 판단과 책임은 본인에게 있음</p>;
-}
+export { Disclaimer };
 
 type Tab = 'home' | 'chat' | 'settings';
 
 function todayLabel(): string {
   return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
-}
-
-function greeting(): string {
-  const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', hour: 'numeric', hourCycle: 'h23' }).format(new Date()));
-  if (h < 5) return '늦은 밤이에요';
-  if (h < 11) return '좋은 아침이에요';
-  if (h < 17) return '오늘의 시장';
-  return '오늘 하루 정리';
 }
 
 function Home({ onOpen }: { onOpen: (key: string) => void }) {
@@ -66,7 +58,7 @@ function Home({ onOpen }: { onOpen: (key: string) => void }) {
       <header className="topbar">
         <div>
           <p className="topbar-sub">{todayLabel()}</p>
-          <h1>{greeting()}</h1>
+          <h1 className="greet">{greeting(tab)}</h1>
         </div>
         <button type="button" className={`icon-btn${spin ? ' spin' : ''}`} aria-label="새로고침" onAnimationEnd={() => setSpin(false)}
           onClick={reload}><Icon.refresh /></button>
@@ -113,6 +105,9 @@ function Shell() {
   const [instrument, setInstrument] = useState<string | null>(null);
   const [chatKey, setChatKey] = useState<string | null>(null);
 
+  // 키보드가 가린 만큼을 CSS에 알린다(입력창·시트가 키보드 위에 붙게)
+  useEffect(() => watchViewport(), []);
+
   // 화면이 바뀌면 맨 위부터(전환 효과가 새 화면을 찍기 전에 올린다)
   useLayoutEffect(() => {
     document.scrollingElement?.scrollTo?.({ top: 0 });
@@ -145,7 +140,7 @@ function Shell() {
     <div className="app">
       <NetworkBar />
       {body}
-      <Disclaimer />
+      {tab !== 'chat' && <Disclaimer />}
       <nav className="bottom-nav" aria-label="메뉴" style={{ '--i': ['home', 'chat', 'settings'].indexOf(tab) } as CSSProperties}>
         <button type="button" aria-current={tab === 'home' ? 'page' : undefined} onClick={() => go('home')}><Icon.home />홈</button>
         <button type="button" aria-current={tab === 'chat' ? 'page' : undefined} onClick={() => go('chat')}><Icon.chat />AI 상담</button>

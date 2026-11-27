@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { aiReady, type AiReady } from '../aiReady';
 import { formatDateTimeKst } from '../format';
 import { streamSse } from '../sse';
 import type { ChartSpec, ProviderId } from '../types';
-import { Dots, Icon, Segmented, Sheet, usd } from '../ui';
+import { Disclaimer, Dots, Icon, Segmented, Sheet, usd } from '../ui';
 import { PROVIDER_LABEL } from './AnalysisPanel';
 import { CandleChart } from './CandleChart';
 import { Markdown } from '../markdown';
@@ -169,7 +170,7 @@ function ChatDrawer({ currentId, onPick, onNew, onDeleted, onClose }: {
     await api(`/api/chats/${id}`, { method: 'DELETE' }).catch(() => undefined);
     onDeleted(id);
   }
-  return (
+  return createPortal(
     <div className={`drawer-wrap${closing ? ' closing' : ''}`}>
       <button type="button" className="drawer-backdrop" aria-label="대화 목록 닫기" onClick={close} />
       <aside className="drawer" role="dialog" aria-modal="true" aria-label="대화 목록">
@@ -192,7 +193,8 @@ function ChatDrawer({ currentId, onPick, onNew, onDeleted, onClose }: {
           ))}
         </ul>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -364,6 +366,7 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
             )}
           </div>
         ))}
+        <Disclaimer />
         <div ref={endRef} />
       </div>
 
@@ -371,6 +374,7 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
         <Segmented small kind="radio" label="생각 깊이" value={pref.depth} onChange={(depth: Depth) => setAndSave({ ...pref, depth })} options={DEPTHS} />
         <form className="composer" onSubmit={submit}>
           <textarea aria-label="메시지" rows={1} value={input} onChange={(e) => setInput(e.target.value)}
+            onFocus={() => setTimeout(() => endRef.current?.scrollIntoView?.({ block: 'end' }), 350)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }}
             placeholder={`${PROVIDER_LABEL[pref.provider]}에게 물어보기`} />
           {busy

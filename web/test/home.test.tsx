@@ -132,3 +132,25 @@ describe('watch list', () => {
     expect(await screen.findByText('종목 화면에서 ☆을 누르면 여기에 모여요')).toBeTruthy();
   });
 });
+
+describe('fear & greed', () => {
+  test('is colored by its level and shows where it sits on a fear-to-greed bar', async () => {
+    mockServer({ '/api/market-overview': () => ({ items: [
+      { id: 'fng', label: '공포·탐욕', value: 11, changePct: null, note: '극도의 공포' },
+    ] }) });
+    render(<MarketOverview />);
+    const tile = await screen.findByRole('group', { name: '공포·탐욕' });
+    expect(tile.className).toContain('fng-fear-x');
+    expect(tile.textContent).toContain('극도의 공포');
+    const mark = tile.querySelector('.fng-bar > b') as HTMLElement;
+    expect(mark.style.left).toBe('11%');
+  });
+
+  test('greed gets the greed color, the middle stays neutral', async () => {
+    mockServer({ '/api/market-overview': () => ({ items: [
+      { id: 'fng', label: '공포·탐욕', value: 81, changePct: null, note: '극도의 탐욕' },
+    ] }) });
+    render(<MarketOverview />);
+    expect((await screen.findByRole('group', { name: '공포·탐욕' })).className).toContain('fng-greed-x');
+  });
+});

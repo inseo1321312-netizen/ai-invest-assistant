@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { motionOk } from './motion';
 import { createPortal } from 'react-dom';
 
@@ -28,9 +28,95 @@ export const Icon = {
   spark: () => svg(<><path d="M12 3v4M12 17v4M3 12h4M17 12h4" /><path d="m6 6 2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18" /></>),
 };
 
+/* ── 뒤 화면 고정 ──────────────────────────────────── */
+// 시트가 열려 있는 동안 뒤 화면이 같이 끌려 다니지 않게 body를 그 자리에 묶어 둔다(아이폰은 overflow만으로는 안 묶인다)
+let locks = 0;
+let lockedY = 0;
+export function lockScroll(): () => void {
+  if (locks++ === 0) {
+    lockedY = window.scrollY;
+    Object.assign(document.body.style, { position: 'fixed', top: `-${lockedY}px`, left: '0', right: '0', overflow: 'hidden' });
+  }
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    if (--locks > 0) return;
+    Object.assign(document.body.style, { position: '', top: '', left: '', right: '', overflow: '' });
+    window.scrollTo(0, lockedY);
+  };
+}
+
+/** 시트를 아래로 끌어 닫기: 맨 위까지 올라가 있을 때 아래로 끌면 시트가 손가락을 따라 내려오고, 충분히 내리면 닫힌다 */
+function useDragToClose(ref: { current: HTMLDivElement | null }, onDismiss: () => void, backdrop: { current: HTMLDivElement | null }) {
+  const cb = useRef(onDismiss);
+  cb.current = onDismiss;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let y0: number | null = null;
+    let t0 = 0;
+    let dy = 0;
+    let mode: 'idle' | 'drag' | 'scroll' = 'idle';
+    const put = (px: number, animate: boolean) => {
+      el.style.transition = animate ? 'transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none';
+      el.style.transform = px > 0 ? `translate(-50%, ${px}px)` : '';
+      if (backdrop.current) {
+        backdrop.current.style.transition = el.style.transition.replace('transform', 'opacity');
+        backdrop.current.style.opacity = px > 0 ? String(Math.max(0.2, 1 - px / 400)) : '';
+      }
+    };
+    const start = (e: TouchEvent) => {
+      if (e.touches.length !== 1) { y0 = null; return; }
+      y0 = e.touches[0]!.clientY;
+      t0 = Date.now();
+      dy = 0;
+      mode = 'idle';
+    };
+    const move = (e: TouchEvent) => {
+      if (y0 === null) return;
+      const d = (e.touches[0]?.clientY ?? y0) - y0;
+      if (mode === 'idle') {
+        if (Math.abs(d) < 6) return;
+        // 목록이 맨 위에 있고 아래로 끌 때만 시트를 내린다(아니면 평소처럼 목록이 움직인다)
+        mode = d > 0 && el.scrollTop <= 0 ? 'drag' : 'scroll';
+      }
+      if (mode !== 'drag') return;
+      if (e.cancelable) e.preventDefault();
+      dy = Math.max(0, d);
+      put(dy, false);
+    };
+    const end = () => {
+      if (y0 === null) return;
+      y0 = null;
+      if (mode !== 'drag') return;
+      const fast = dy / Math.max(1, Date.now() - t0) > 0.6;
+      if (dy > 110 || (fast && dy > 40)) {
+        put(el.offsetHeight || 600, true);
+        const done = () => cb.current();
+        if (motionOk()) setTimeout(done, 200); else done();
+      } else {
+        put(0, true);
+      }
+    };
+    el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('touchmove', move, { passive: false });
+    el.addEventListener('touchend', end);
+    el.addEventListener('touchcancel', end);
+    return () => {
+      el.removeEventListener('touchstart', start);
+      el.removeEventListener('touchmove', move);
+      el.removeEventListener('touchend', end);
+      el.removeEventListener('touchcancel', end);
+    };
+  }, [ref, backdrop]);
+}
+
 /* ── 바텀 시트 ─────────────────────────────────────── */
 export function Sheet({ title, onClose, children, full = false }: { title: string; onClose: () => void; children: ReactNode; full?: boolean }) {
   const [closing, setClosing] = useState(false);
+  const sheet = useRef<HTMLDivElement>(null);
+  const backdrop = useRef<HTMLDivElement>(null);
   const close = useCallback(() => {
     if (!motionOk()) { onClose(); return; }
     setClosing(true);
@@ -41,11 +127,14 @@ export function Sheet({ title, onClose, children, full = false }: { title: strin
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [close]);
+  // 화면 이동(맨 위로)보다 먼저 풀리도록 layout 단계에서 묶고 푼다
+  useLayoutEffect(() => lockScroll(), []);
+  useDragToClose(sheet, onClose, backdrop);
   // body에 그려서 부모의 transform·overflow 영향을 받지 않게 한다
   return createPortal(
     <>
-      <div className={`sheet-backdrop${closing ? ' closing' : ''}`} onClick={close} />
-      <div className={`sheet${full ? ' full' : ''}${closing ? ' closing' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={backdrop} className={`sheet-backdrop${closing ? ' closing' : ''}`} onClick={close} />
+      <div ref={sheet} className={`sheet${full ? ' full' : ''}${closing ? ' closing' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="sheet-handle" />
         <div className="sheet-head">
           <h2>{title}</h2>
@@ -142,4 +231,8 @@ export function useToast(): [ReactNode, (msg: string) => void] {
 
 export function usd(n: number): string {
   return `$${n.toFixed(2)}`;
+}
+
+export function Disclaimer() {
+  return <p className="disclaimer">투자 판단과 책임은 본인에게 있음</p>;
 }
