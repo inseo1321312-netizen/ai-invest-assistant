@@ -18,10 +18,14 @@ export function useOvernightPopup(open: () => void): void {
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let fails = 0;
     const check = async () => {
       clearTimeout(timer);
       const v = await api<{ recap: Recap | null; making: boolean }>('/api/overnight').catch(() => null);
-      if (!alive || !v) return;
+      if (!alive) return;
+      // 못 읽었으면(서버가 깨는 중 등) 몇 번 더 묻는다
+      if (!v) { if (++fails <= 10) timer = setTimeout(() => void check(), 8000); return; }
+      fails = 0;
       if (v.making) { timer = setTimeout(() => void check(), 8000); return; }
       const r = v.recap;
       let seen: string | null = null;

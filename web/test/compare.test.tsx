@@ -12,10 +12,11 @@ const SS = 'kr:005930';
 const HX = 'kr:000660';
 const AAPL = 'us:NAS:AAPL';
 const BTC = 'coin:BTC-USDT';
-const NAMES: Record<string, string> = { [SS]: '삼성전자', [HX]: 'SK하이닉스', [AAPL]: '애플', [BTC]: '비트코인' };
+const NAVER = 'kr:035420';
+const NAMES: Record<string, string> = { [SS]: '삼성전자', [HX]: 'SK하이닉스', [AAPL]: '애플', [BTC]: '비트코인', [NAVER]: 'NAVER' };
 const QUOTES: Record<string, { price: number; changePct24h: number; currency: string }> = {
   [SS]: { price: 179500, changePct24h: 4.8, currency: 'KRW' }, [HX]: { price: 612000, changePct24h: 3.1, currency: 'KRW' },
-  [AAPL]: { price: 355.1, changePct24h: -0.4, currency: 'USD' }, [BTC]: { price: 96000, changePct24h: -2, currency: 'USDT' },
+  [AAPL]: { price: 355.1, changePct24h: -0.4, currency: 'USD' }, [BTC]: { price: 96000, changePct24h: -2, currency: 'USDT' }, [NAVER]: { price: 250000, changePct24h: 1, currency: 'KRW' },
 };
 
 function result(keys: string[], pick: string | null, over: Record<string, unknown> = {}) {
@@ -143,5 +144,34 @@ describe('compare as VS', () => {
     await waitFor(() => expect(signal).toBeDefined());
     unmount();
     expect(signal!.aborted).toBe(true);
+  });
+});
+
+describe('review fixes', () => {
+  test('long names cannot stretch a VS slot; a 4-item table fits without a forced width', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/styles.css', 'utf8');
+    expect(css).toMatch(/\.vs \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+    expect(css).toMatch(/\.vs-slot \{[^}]*min-width: 0/);
+    expect(css).not.toMatch(/\.vs-table\.n[34] \{ min-width/);
+  });
+
+  test('a price that cannot be loaded shows a dash, not a skeleton forever', async () => {
+    picks([SS, HX]);
+    server({ '/api/market/quote': (url) => (url.searchParams.get('key') === HX ? new Response('{}', { status: 502 }) : { quote: { ...QUOTES[SS], time: 0 }, name: '삼성전자' }) });
+    render(<CompareView seed={null} onOpen={() => {}} onAsk={() => {}} />);
+    const slot = await screen.findByRole('group', { name: 'SK하이닉스' });
+    await waitFor(() => expect(slot.textContent).toContain('—'));
+    expect(slot.querySelector('.skeleton')).toBeNull();
+  });
+
+  test('"다른 AI에게도 묻기" only shows when the other AI is connected', async () => {
+    picks([SS, HX]);
+    sessionStorage.setItem('compare.last', JSON.stringify(result([HX, SS], HX)));
+    server();
+    render(<CompareView seed={null} onOpen={() => {}} onAsk={() => {}} />);
+    const card = await screen.findByRole('region', { name: '비교 결과' });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(within(card).queryByRole('button', { name: '다른 AI에게도 묻기' })).toBeNull();
   });
 });

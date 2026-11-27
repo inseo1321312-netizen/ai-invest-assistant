@@ -76,3 +76,36 @@ test('tapping the push while the app is open shows it', async () => {
   expect(await screen.findByRole('dialog', { name: '밤사이' })).toBeTruthy();
   delete (navigator as { serviceWorker?: unknown }).serviceWorker;
 });
+
+
+test('a failed check while it is being made keeps checking', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  let n = 0;
+  mockServer({
+    '/api/me': () => ({ loggedIn: true }),
+    '/api/overnight': () => { n++; if (n === 1) return { recap: null, settings: SETTINGS, making: true, error: null, sleepTimes: [], wakeTimes: [] }; if (n === 2) return new Response('{}', { status: 502 }); return { recap: recap(today(), 11), settings: SETTINGS, making: false, error: null, sleepTimes: [], wakeTimes: [] }; },
+    '/api/overnight/history': () => ({ items: [] }),
+  });
+  render(<App />);
+  await screen.findByRole('navigation', { name: '메뉴' });
+  await act(async () => { await vi.advanceTimersByTimeAsync(8100); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(8100); });
+  expect(await screen.findByRole('dialog', { name: '밤사이' })).toBeTruthy();
+});
+
+test('opening a past recap inside the sheet scrolls the sheet back to the top', async () => {
+  localStorage.setItem('overnight.seen', '5');
+  mockServer({
+    '/api/me': () => ({ loggedIn: true }),
+    '/api/overnight': () => ({ recap: recap(today()), settings: SETTINGS, making: false, error: null, sleepTimes: [], wakeTimes: [] }),
+    '/api/overnight/history': () => ({ items: [{ id: 4, day: '2026-11-27', from: 0, to: Date.now() - 86400_000, origin: 'scheduled', headline: '어제 정리' }] }),
+    '/api/overnight/4': () => ({ recap: { ...recap('2026-11-27', 4), headline: '어제 정리' } }),
+  });
+  render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: '밤사이 보기' }));
+  const sheet = await screen.findByRole('dialog', { name: '밤사이' });
+  sheet.scrollTop = 500;
+  await userEvent.click(within(await within(sheet).findByRole('list', { name: '지난 정리' })).getByRole('button', { name: /어제 정리/ }));
+  await within(sheet).findByRole('heading', { name: '어제 정리' });
+  expect(sheet.scrollTop).toBe(0);
+});

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { axisPrice, changeClass, formatPrice, parseKey } from '../format';
 import type { Currency, MarketId } from '../types';
@@ -65,6 +65,7 @@ export function OvernightView({ onOpen, embedded = false, onSeen }: { onOpen: (k
   const [past, setPast] = useState<Past[]>([]);
   const [editing, setEditing] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const [tries, setTries] = useState(0);
   const load = () => api<View>('/api/overnight')
@@ -96,14 +97,18 @@ export function OvernightView({ onOpen, embedded = false, onSeen }: { onOpen: (k
 
   async function openPast(id: number) {
     const r = await api<{ recap: Recap }>(`/api/overnight/${id}`).catch(() => null);
-    if (r) { setShown(r.recap); window.scrollTo?.({ top: 0 }); }
+    if (!r) return;
+    setShown(r.recap);
+    // 창 안에서는 창이 스크롤된다(뒤 화면은 묶여 있다)
+    const sheet = rootRef.current?.closest('.sheet') as HTMLElement | null;
+    if (sheet) sheet.scrollTop = 0; else window.scrollTo?.({ top: 0 });
   }
 
   const recap = shown ?? view?.recap ?? null;
   const settings = view?.settings;
 
   return (
-    <div className="screen overnight" role="region" aria-label="밤사이">
+    <div ref={rootRef} className="screen overnight" role="region" aria-label="밤사이">
       <header className={embedded ? 'on-head' : 'topbar'}>
         <div>
           <p className="topbar-sub">{recap ? rangeText(recap.from, recap.to) : '자는 동안 있었던 일'}</p>

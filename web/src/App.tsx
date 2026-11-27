@@ -106,6 +106,8 @@ function Shell() {
   const [night, setNight] = useState(openedFromPush);
   const [compareSeed, setCompareSeed] = useState<string | null>(null);
   const [chatDraft, setChatDraft] = useState<{ id: number; text: string } | null>(null);
+  // 종목 화면에서 상담으로 갔다가 돌아올 탭(홈 또는 비교)
+  const [chatFrom, setChatFrom] = useState<Tab>('home');
   // 아침에 처음 열면 밤사이 정리가 먼저 올라온다
   useOvernightPopup(() => setNight(true));
   const [, setFxTick] = useState(0);
@@ -160,15 +162,15 @@ function Shell() {
 
   let body;
   if ((tab === 'home' || tab === 'compare') && instrument) {
-    body = <InstrumentView key={instrument} keyId={instrument} onClose={() => navigate('back', () => setInstrument(null))} onChat={(k) => navigate('forward', () => { setChatDraft(null); setChatKey(k); setTab('chat'); })}
+    body = <InstrumentView key={instrument} keyId={instrument} onClose={() => navigate('back', () => setInstrument(null))} onChat={(k) => navigate('forward', () => { setChatFrom(tab); setChatDraft(null); setChatKey(k); setTab('chat'); })}
       onCompare={(k) => navigate('tab', () => { setInstrument(null); setCompareSeed(k); setTab('compare'); })} />;
   } else if (tab === 'home') {
     body = <Home onOpen={open} onNight={() => setNight(true)} />;
   } else if (tab === 'compare') {
-    body = <CompareView key={compareSeed ?? 'none'} seed={compareSeed} onOpen={(k) => navigate('forward', () => setInstrument(k))}
+    body = <CompareView key={compareSeed ?? 'none'} seed={compareSeed} onOpen={(k) => navigate('forward', () => { setCompareSeed(null); setInstrument(k); })}
       onAsk={(text) => navigate('tab', () => { setChatKey(null); setChatDraft({ id: Date.now(), text }); setTab('chat'); })} />;
   } else if (tab === 'chat') {
-    body = <ChatView key={chatKey ?? (chatDraft ? `draft-${chatDraft.id}` : 'all')} keyId={chatKey} draft={chatDraft?.text} onClose={chatKey ? () => navigate('back', () => { setTab('home'); setInstrument(chatKey); }) : undefined} />;
+    body = <ChatView key={chatKey ?? (chatDraft ? `draft-${chatDraft.id}` : 'all')} keyId={chatKey} draft={chatDraft?.text} onClose={chatKey ? () => navigate('back', () => { setTab(chatFrom); setInstrument(chatKey); }) : undefined} />;
   } else {
     body = <SettingsView />;
   }

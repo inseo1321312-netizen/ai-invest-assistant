@@ -969,9 +969,9 @@ html { touch-action: manipulation; }
 
 /* ── 비교 VS ───────────────────────────────────────── */
 .compare .topbar h1 { font-size: 28px; }
-.vs { position: relative; margin: 6px var(--gutter) 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.vs { position: relative; margin: 6px var(--gutter) 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .vs.grid { gap: 10px; }
-.vs-slot { position: relative; display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 150px; padding: 18px 10px 14px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); text-align: center; }
+.vs-slot { position: relative; min-width: 0; display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 150px; padding: 18px 10px 14px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); text-align: center; }
 .vs-slot .avatar { width: 44px; height: 44px; font-size: 15px; }
 .vs-name { font-weight: 800; font-size: 15.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vs-price { font-weight: 800; font-size: 17px; letter-spacing: -0.02em; }
@@ -1006,8 +1006,9 @@ html { touch-action: manipulation; }
 .vs-table thead th { border-top: none; }
 .vs-table tbody th { position: sticky; left: 0; z-index: 1; width: 64px; text-align: left; color: var(--muted); font-weight: 700; background: var(--surface); padding-left: 0; }
 .vs-table thead th:first-child { width: 64px; position: sticky; left: 0; background: var(--surface); }
-.vs-table.n3 { min-width: 330px; }
-.vs-table.n4 { min-width: 400px; }
+.vs-table.n4 { font-size: 12px; }
+.vs-table.n4 tbody th, .vs-table.n4 thead th:first-child { width: 50px; }
+.vs-table td { overflow-wrap: anywhere; }
 .vs-table .win { background: var(--ai-soft); }
 .vs-table thead th.win { border-radius: 12px 12px 0 0; }
 .vs-table tbody tr:last-child td.win { border-radius: 0 0 12px 12px; }
@@ -1037,6 +1038,5 @@ html { touch-action: manipulation; }
 .on-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: -4px 0 4px; }
 .on-head .topbar-sub { margin: 0; }
 .sheet .overnight .on-summary, .sheet .overnight .on-market, .sheet .overnight .on-metals, .sheet .overnight .on-today, .sheet .overnight .on-pad { margin-left: 0; margin-right: 0; }
-.sheet .overnight .section-title { margin-left: 0; margin-right: 0; }
-.home-actions { display: flex; gap: 6px; }
+.sheet .overnight .section-title, .sheet .overnight .list, .sheet .overnight .on-sk, .sheet .overnight .on-empty { margin-left: 0; margin-right: 0; }
 .vs-table .win .cmp-year i { background: var(--line-strong); }

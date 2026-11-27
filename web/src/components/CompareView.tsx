@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
-import { aiReady } from '../aiReady';
+import { aiReady, type AiReady } from '../aiReady';
 import { changeClass, formatPrice, parseKey } from '../format';
 import { streamSse } from '../sse';
 import type { Currency, Horizon, ProviderId } from '../types';
@@ -66,7 +66,9 @@ export function CompareView({ seed, onOpen, onAsk }: { seed: string | null; onOp
     return seed && !saved.some((p) => p.key === seed) && saved.length >= MAX ? { key: seed, name: null } : null;
   });
   const [horizon, setHorizon] = useState<Horizon>(() => readSaved().horizon);
-  const [live, setLive] = useState<Record<string, Live | null>>({});
+  // 담은 종목 시세: null = 불러오는 중, false = 못 불러옴
+  const [live, setLive] = useState<Record<string, Live | null | false>>({});
+  const [ready, setReady] = useState<AiReady | null>(null);
   const [suggest, setSuggest] = useState<Suggest[]>([]);
   const [past, setPast] = useState<Past[]>([]);
   const [searching, setSearching] = useState(false);
@@ -84,6 +86,7 @@ export function CompareView({ seed, onOpen, onAsk }: { seed: string | null; onOp
   useEffect(() => {
     api<{ items: Suggest[] }>('/api/compare/suggest').then((r) => setSuggest(r.items)).catch(() => undefined);
     void loadPast();
+    void aiReady().then(setReady);
     return () => abort.current?.abort();
   }, []);
 
@@ -97,10 +100,10 @@ export function CompareView({ seed, onOpen, onAsk }: { seed: string | null; onOp
       setLive((m) => ({ ...m, [p.key]: null }));
       api<{ quote: Live; name?: string | null }>(`/api/market/quote?key=${encodeURIComponent(p.key)}`)
         .then((r) => {
-          setLive((m) => ({ ...m, [p.key]: r.quote }));
+          setLive((m) => ({ ...m, [p.key]: r.quote && typeof r.quote.price === 'number' ? r.quote : false }));
           if (!p.name && r.name) setPicks((list) => list.map((x) => (x.key === p.key ? { ...x, name: r.name! } : x)));
         })
-        .catch(() => undefined);
+        .catch(() => setLive((m) => ({ ...m, [p.key]: false })));
     }
   }, [picks]);
 
@@ -148,7 +151,9 @@ export function CompareView({ seed, onOpen, onAsk }: { seed: string | null; onOp
   const busy = status !== null;
   const quick = picks.length < MAX ? suggest.filter((s) => !picks.some((p) => p.key === s.key)) : [];
   const empties = Math.max(0, 2 - picks.length);
-  const other: ProviderId | null = result ? (result.provider === 'claude' ? 'gpt' : 'claude') : null;
+  // 다른 AI는 연결돼 있을 때만
+  const otherId: ProviderId | null = result ? (result.provider === 'claude' ? 'gpt' : 'claude') : null;
+  const other = otherId && ready && ready[otherId] ? otherId : null;
 
   return (
     <div className="screen compare" role="region" aria-label="비교">
@@ -169,8 +174,8 @@ export function CompareView({ seed, onOpen, onAsk }: { seed: string | null; onOp
               <button type="button" className="vs-x" aria-label={`${name} 빼기`} onClick={() => remove(p.key)}><Icon.close /></button>
               <Avatar inst={parseKey(p.key, p.name)} logoKey={p.key} />
               <span className="vs-name">{name}</span>
-              <span className="vs-price num">{q ? formatPrice(q.price, q.currency) : <span className="skeleton vs-sk" />}</span>
-              <span className={`vs-chg num ${changeClass(q?.changePct24h)}`}>{q ? signed(q.changePct24h) : ''}</span>
+              <span className="vs-price num">{q ? formatPrice(q.price, q.currency) : q === false ? '—' : <span className="skeleton vs-sk" />}</span>
+              <span className={`vs-chg num ${changeClass(q ? q.changePct24h : null)}`}>{q ? signed(q.changePct24h) : ''}</span>
             </div>
           );
         })}
