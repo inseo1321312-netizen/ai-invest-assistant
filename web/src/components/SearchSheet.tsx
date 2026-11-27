@@ -5,7 +5,7 @@ import { Dots, Sheet } from '../ui';
 import { Avatar, MARKET_SHORT } from './rows';
 
 /** 이름 일부나 기호로 세 시장을 한 번에 찾는다. ★로 즐겨찾기에 넣고 뺀다. */
-export function SearchSheet({ onOpen, onClose }: { onOpen: (key: string) => void; onClose: () => void }) {
+export function SearchSheet({ onOpen, onClose }: { onOpen: (key: string, name?: string) => void; onClose: () => void }) {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -50,7 +50,7 @@ export function SearchSheet({ onOpen, onClose }: { onOpen: (key: string) => void
         <ul className="search-list" aria-label="검색 결과">
           {hits.map((h) => (
             <li key={h.key}>
-              <button type="button" className="search-row" aria-label={`${h.name} ${h.symbol} ${MARKET_SHORT[h.market]}`} onClick={() => { onOpen(h.key); onClose(); }}>
+              <button type="button" className="search-row" aria-label={`${h.name} ${h.symbol} ${MARKET_SHORT[h.market]}`} onClick={() => { onOpen(h.key, h.name); onClose(); }}>
                 <Avatar inst={{ market: h.market, symbol: h.symbol, name: h.name }} logoKey={h.key} />
                 <span className="search-name">{h.name}<small>{h.symbol}</small></span>
                 <span className={`market-badge ${h.market}`}>{MARKET_SHORT[h.market]}</span>

@@ -899,3 +899,60 @@ a.ticker-item .tag { color: var(--ai); }
 
 /* 한글은 단어 중간에서 줄을 바꾸지 않는다(긴 영문·주소만 필요할 때 끊는다) */
 body { word-break: keep-all; overflow-wrap: break-word; }
+
+/* ── 비교 탭 ───────────────────────────────────────── */
+.bottom-nav { grid-template-columns: repeat(4, 1fr); max-width: 440px; }
+.bottom-nav::before { width: calc((100% - 12px) / 4); }
+.compare .topbar h1 { font-size: 28px; }
+.cmp-pick { margin: 4px var(--gutter) 0; display: grid; gap: 12px; }
+.cmp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.cmp-chip { display: inline-flex; align-items: center; gap: 7px; height: 44px; padding: 0 4px 0 6px; border-radius: 999px; background: var(--surface-2); font-weight: 700; font-size: 14.5px; max-width: 100%; }
+.cmp-chip .avatar { width: 30px; height: 30px; font-size: 12px; }
+.cmp-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 9em; }
+.cmp-x { width: 34px; height: 34px; border: none; border-radius: 50%; background: none; color: var(--muted); display: grid; place-items: center; }
+.cmp-x svg { width: 15px; height: 15px; }
+.cmp-add { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 16px 0 12px; border-radius: 999px; border: 1.5px dashed var(--line-strong); background: none; color: var(--ink-2); font-weight: 700; font-size: 14.5px; }
+.cmp-add svg { width: 17px; height: 17px; }
+.cmp-quick { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: -2px calc(var(--gutter) * -1) 0; padding: 0 var(--gutter); }
+.cmp-quick::-webkit-scrollbar { display: none; }
+.cmp-quick button { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.cmp-src { width: 6px; height: 6px; border-radius: 50%; background: #f5b400; }
+.cmp-src.holding { background: var(--ai); }
+.cmp-pick > .seg.small { width: 100%; }
+.cmp-go { min-height: 52px; font-size: 16px; }
+.cmp-hint { margin: -4px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+
+.cmp-result { margin: 18px var(--gutter) 0; padding: 18px 16px 14px; border-radius: 24px; background: var(--surface); }
+.cmp-verdict { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.cmp-verdict-main { margin: 0; font-size: 15px; font-weight: 700; color: var(--muted); }
+.cmp-verdict-main b { display: block; margin-top: 2px; font-size: 28px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink); }
+.cmp-conf { flex: none; padding: 4px 10px; border-radius: 999px; background: var(--ai-soft); color: var(--ai); font-size: 12.5px; font-weight: 800; }
+.cmp-summary { margin: 8px 0 0; color: var(--ink-2); font-size: 14.5px; line-height: 1.55; }
+.cmp-rank { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 2px; }
+.cmp-rank li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.cmp-n { width: 24px; height: 24px; margin-top: 6px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); font-size: 13px; font-weight: 800; }
+.cmp-rank li.top .cmp-n { background: var(--ai); color: #fff; }
+.cmp-rank-name { display: flex; align-items: center; gap: 8px; width: 100%; padding: 0; border: none; background: none; text-align: left; font-size: 15.5px; font-weight: 800; }
+.cmp-rank-name .avatar { width: 28px; height: 28px; font-size: 11px; }
+.cmp-op { margin-left: auto; flex: none; padding: 2px 9px; border-radius: 7px; font-size: 12px; font-weight: 800; background: var(--surface-2); color: var(--muted); }
+.cmp-op.op-매수, .cmp-op.op-롱\ 진입 { background: var(--up-soft); color: var(--up); }
+.cmp-op.op-매도, .cmp-op.op-숏\ 진입 { background: var(--down-soft); color: var(--down); }
+.cmp-why { margin: 6px 0 0; font-size: 14px; color: var(--ink-2); }
+.cmp-risk { margin: 3px 0 0; font-size: 13px; color: var(--muted); }
+.cmp-risk::before { content: '위험 · '; font-weight: 700; }
+.cmp-table-wrap { margin: 10px -16px 0; padding: 0 16px; overflow-x: auto; }
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cmp-table th, .cmp-table td { padding: 8px 6px; text-align: right; white-space: nowrap; border-top: 1px solid var(--line); }
+.cmp-table thead th { border-top: none; font-size: 12.5px; color: var(--ink-2); font-weight: 800; max-width: 7em; overflow: hidden; text-overflow: ellipsis; }
+.cmp-table tbody th { text-align: left; color: var(--muted); font-weight: 700; padding-left: 0; }
+.cmp-year { display: inline-flex; align-items: center; gap: 6px; }
+.cmp-year i { position: relative; width: 38px; height: 4px; border-radius: 2px; background: var(--surface-3); }
+.cmp-year b { position: absolute; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--ai); }
+.cmp-who { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+.cmp-actions { display: flex; gap: 8px; margin-top: 12px; }
+.cmp-actions .btn { flex: 1; }
+.cmp-past { margin: 10px 0 0; }
+.cmp-past .section-title { margin: 26px var(--gutter) 8px; }
+.cmp-past-row { display: grid; gap: 2px; width: 100%; padding: 12px 14px; border: none; background: none; text-align: left; }
+.cmp-past-names { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmp-past-row small { color: var(--muted); font-size: 12.5px; }

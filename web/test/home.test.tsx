@@ -22,7 +22,7 @@ describe('search', () => {
     const row = await within(dialog).findByRole('button', { name: /삼성전자 005930/ }, { timeout: 1000 });
     expect(within(row).getByText('한국')).toBeTruthy();
     await userEvent.click(row);
-    expect(onOpen).toHaveBeenCalledWith('kr:005930');
+    expect(onOpen).toHaveBeenCalledWith('kr:005930', '삼성전자');
     expect(onClose).toHaveBeenCalled();
     expect(s.calls.filter((c) => c.url.pathname === '/api/search').every((c) => c.url.searchParams.get('q') === '삼')).toBe(true);
   });
