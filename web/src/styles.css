@@ -1039,3 +1039,4 @@ html { touch-action: manipulation; }
 .sheet .overnight .on-summary, .sheet .overnight .on-market, .sheet .overnight .on-metals, .sheet .overnight .on-today, .sheet .overnight .on-pad { margin-left: 0; margin-right: 0; }
 .sheet .overnight .section-title { margin-left: 0; margin-right: 0; }
 .home-actions { display: flex; gap: 6px; }
+.vs-table .win .cmp-year i { background: var(--line-strong); }
