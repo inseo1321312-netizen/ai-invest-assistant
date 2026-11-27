@@ -135,7 +135,9 @@ describe('ways in and out', () => {
     server();
     const onCompare = vi.fn();
     render(<InstrumentView keyId={SS} onClose={() => {}} onChat={() => {}} onCompare={onCompare} />);
-    await userEvent.click(screen.getByRole('button', { name: '비교에 담기' }));
+    const btn = await screen.findByRole('button', { name: '비교에 담기' });
+    expect(btn.closest('header')).toBeNull(); // 머리 줄은 이미 꽉 차 있다
+    await userEvent.click(btn);
     expect(onCompare).toHaveBeenCalledWith(SS);
   });
 
@@ -146,5 +148,103 @@ describe('ways in and out', () => {
     expect((screen.getByRole('textbox', { name: '메시지' }) as HTMLTextAreaElement).value).toBe('SK하이닉스·삼성전자 스윙 비교에서 SK하이닉스가 낫다고 나왔는데, ');
     await new Promise((r) => setTimeout(r, 50));
     expect(s.calls.some((c) => c.url.pathname === '/api/chats/3/messages')).toBe(false);
+  });
+});
+
+describe('review fixes', () => {
+  test('the other AI is asked about the result on screen, not whatever is picked now', async () => {
+    picks([SS, HX]);
+    const past = { ...result([HX, AAPL], HX), horizon: 'long', provider: 'claude' };
+    const s = server({
+      '/api/compare/history': () => ({ items: [{ id: 7, keys: [HX, AAPL], names: { [HX]: 'SK하이닉스', [AAPL]: '애플' }, horizon: 'long', provider: 'claude', pick: HX, createdAt: Date.now() }] }),
+      '/api/compare/7': () => ({ result: past }),
+      'POST /api/compare': () => sseResponse([{ type: 'compare', result: { ...past, provider: 'gpt', id: 8 }, cached: false }]),
+    });
+    render(<CompareView seed={null} onOpen={() => {}} onAsk={() => {}} />);
+    await userEvent.click(within(await screen.findByRole('list', { name: '지난 비교' })).getByRole('button', { name: /SK하이닉스 · 애플/ }));
+    await userEvent.click(await screen.findByRole('button', { name: 'GPT 의견' }));
+    await waitFor(() => expect(s.calls.find((c) => c.method === 'POST')?.body).toEqual({ keys: [HX, AAPL], horizon: 'long', provider: 'gpt' }));
+  });
+
+  test('the last result is still there after leaving the tab and coming back', async () => {
+    picks([SS, HX]);
+    server({ 'POST /api/compare': () => sseResponse([{ type: 'compare', result: result([HX, SS], HX), cached: false }]) });
+    const first = render(<CompareView seed={null} onOpen={() => {}} onAsk={() => {}} />);
+    await userEvent.click(screen.getByRole('button', { name: '비교하기' }));
+    await screen.findByRole('region', { name: '비교 결과' });
+    first.unmount();
+    render(<CompareView seed={null} onOpen={() => {}} onAsk={() => {}} />);
+    expect((await screen.findByRole('region', { name: '비교 결과' })).textContent).toContain('지금은 SK하이닉스');
+  });
+
+  test('a stock opened from the ranking goes back to the compare tab', async () => {
+    picks([SS, HX]);
+    sessionStorage.setItem('compare.last', JSON.stringify(result([HX, SS], HX)));
+    server({ '/api/me': () => ({ loggedIn: true }) });
+    render(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: '비교' }));
+    const card = await screen.findByRole('region', { name: '비교 결과' });
+    await userEvent.click(within(within(card).getByRole('list', { name: '순위' })).getByRole('button', { name: /SK하이닉스/ }));
+    expect(await screen.findByRole('region', { name: `${HX} 상세` })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '비교' }).getAttribute('aria-current')).toBe('page');
+    await userEvent.click(screen.getByRole('button', { name: '뒤로' }));
+    expect(await screen.findByRole('region', { name: '비교 결과' })).toBeTruthy();
+    sessionStorage.clear();
+  });
+
+  test('futures opinions get the buy/sell colors too', async () => {
+    picks([SS, HX]);
+    const r = result([HX, SS], HX);
+    r.ranking[0]!.opinion = '롱 진입';
+    r.ranking[1]!.opinion = '숏 진입';
+    sessionStorage.setItem('compare.last', JSON.stringify(r));
+    server();
+    render(<CompareView seed={null} onOpen={() => {}} onAsk={() => {}} />);
+    expect((await screen.findByText('롱 진입')).className).toContain('op-buy');
+    expect(screen.getByText('숏 진입').className).toContain('op-sell');
+    sessionStorage.clear();
+  });
+
+  test('with four already picked, a fifth waits and goes in once one is taken out', async () => {
+    picks([SS, HX, AAPL, BTC]);
+    server();
+    render(<CompareView seed="kr:035420" onOpen={() => {}} onAsk={() => {}} />);
+    expect(await screen.findByText(/4개까지 담을 수 있어요/)).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: '애플 빼기' }));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /빼기$/ })).toHaveLength(4));
+    expect(screen.queryByText(/4개까지 담을 수 있어요/)).toBeNull();
+    expect(JSON.parse(localStorage.getItem('compare.pick')!).keys.map((k: { key: string }) => k.key)).toContain('kr:035420');
+  });
+
+  test('opening a past comparison stops one that is still running', async () => {
+    picks([SS, HX]);
+    let signal: AbortSignal | undefined;
+    server({
+      'POST /api/compare': (_u, init) => { signal = init?.signal ?? undefined; return new Promise(() => {}); },
+      '/api/compare/history': () => ({ items: [{ id: 7, keys: [HX, SS], names: { [HX]: 'SK하이닉스', [SS]: '삼성전자' }, horizon: 'swing', provider: 'gpt', pick: HX, createdAt: Date.now() }] }),
+      '/api/compare/7': () => ({ result: result([HX, SS], HX) }),
+    });
+    render(<CompareView seed={null} onOpen={() => {}} onAsk={() => {}} />);
+    await userEvent.click(screen.getByRole('button', { name: '비교하기' }));
+    await waitFor(() => expect(signal).toBeDefined());
+    await userEvent.click(within(await screen.findByRole('list', { name: '지난 비교' })).getByRole('button', { name: /SK하이닉스 · 삼성전자/ }));
+    expect(signal!.aborted).toBe(true);
+    expect((screen.getByRole('button', { name: '비교하기' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  test('the drafted question in chat has the cursor at its end', async () => {
+    const { ChatView } = await import('../src/components/ChatView');
+    server();
+    const text = 'SK하이닉스·삼성전자 스윙 비교에서 SK하이닉스가 낫다고 나왔는데, ';
+    render(<ChatView keyId={null} draft={text} />);
+    const box = screen.getByRole('textbox', { name: '메시지' }) as HTMLTextAreaElement;
+    await waitFor(() => expect(box.selectionStart).toBe(text.length));
+  });
+
+  test('the side-by-side table keeps its row labels in view and cuts long names', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/styles.css', 'utf8');
+    expect(css).toMatch(/\.cmp-table tbody th \{[^}]*position: sticky; left: 0/);
+    expect(css).toMatch(/\.cmp-th \{[^}]*text-overflow: ellipsis/);
   });
 });

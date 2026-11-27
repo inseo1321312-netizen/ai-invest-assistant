@@ -121,7 +121,7 @@ function Shell() {
   function go(t: Tab) {
     // 지금 보고 있는 탭을 한 번 더 누르면 맨 위로
     if (t === tab && !instrument) { window.scrollTo({ top: 0, behavior: motionOk() ? 'smooth' : 'auto' }); return; }
-    navigate(instrument && t === 'home' ? 'back' : 'tab', () => {
+    navigate(instrument && t === tab ? 'back' : 'tab', () => {
       setInstrument(null);
       if (t === 'chat') { setChatKey(null); setChatDraft(null); }
       if (t === 'compare') setCompareSeed(null);
@@ -130,13 +130,13 @@ function Shell() {
   }
 
   let body;
-  if (tab === 'home' && instrument) {
+  if ((tab === 'home' || tab === 'compare') && instrument) {
     body = <InstrumentView key={instrument} keyId={instrument} onClose={() => navigate('back', () => setInstrument(null))} onChat={(k) => navigate('forward', () => { setChatDraft(null); setChatKey(k); setTab('chat'); })}
       onCompare={(k) => navigate('tab', () => { setInstrument(null); setCompareSeed(k); setTab('compare'); })} />;
   } else if (tab === 'home') {
     body = <Home onOpen={open} />;
   } else if (tab === 'compare') {
-    body = <CompareView key={compareSeed ?? 'none'} seed={compareSeed} onOpen={(k) => navigate('forward', () => { setTab('home'); setInstrument(k); })}
+    body = <CompareView key={compareSeed ?? 'none'} seed={compareSeed} onOpen={(k) => navigate('forward', () => setInstrument(k))}
       onAsk={(text) => navigate('tab', () => { setChatKey(null); setChatDraft({ id: Date.now(), text }); setTab('chat'); })} />;
   } else if (tab === 'chat') {
     body = <ChatView key={chatKey ?? (chatDraft ? `draft-${chatDraft.id}` : 'all')} keyId={chatKey} draft={chatDraft?.text} onClose={chatKey ? () => navigate('back', () => { setTab('home'); setInstrument(chatKey); }) : undefined} />;

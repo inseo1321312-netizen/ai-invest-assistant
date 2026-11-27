@@ -211,6 +211,19 @@ export function ChatView({ keyId, onClose, draft }: { keyId: string | null; onCl
   const chatId = useRef<number | null>(null);
   const aborts = useRef<AbortController[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLTextAreaElement>(null);
+
+  // 비교에서 넘어온 질문: 커서를 끝에 두고, 입력칸은 글 길이만큼 늘린다
+  useEffect(() => {
+    if (draft) boxRef.current?.setSelectionRange(draft.length, draft.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    if (el.scrollHeight > 0) el.style.height = `${Math.min(el.scrollHeight + 2, 140)}px`;
+  }, [input]);
 
   const loadUsage = () => api<Usage>('/api/usage').then(setUsage).catch(() => undefined);
 
@@ -374,7 +387,7 @@ export function ChatView({ keyId, onClose, draft }: { keyId: string | null; onCl
       <div className="composer-wrap">
         <Segmented small kind="radio" label="생각 깊이" value={pref.depth} onChange={(depth: Depth) => setAndSave({ ...pref, depth })} options={DEPTHS} />
         <form className="composer" onSubmit={submit}>
-          <textarea aria-label="메시지" rows={1} value={input} onChange={(e) => setInput(e.target.value)}
+          <textarea ref={boxRef} aria-label="메시지" rows={1} value={input} onChange={(e) => setInput(e.target.value)}
             onFocus={() => setTimeout(() => endRef.current?.scrollIntoView?.({ block: 'end' }), 350)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }}
             placeholder={`${PROVIDER_LABEL[pref.provider]}에게 물어보기`} />

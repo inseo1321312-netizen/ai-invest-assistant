@@ -222,7 +222,6 @@ export function InstrumentView({ keyId, onClose, onChat, onCompare }: { keyId: s
         <div className="head-actions">
           <button type="button" className={`icon-btn toggle-icon${fav ? ' on star' : ''}`} aria-label="즐겨찾기" aria-pressed={fav} onClick={toggleFav}><Icon.star /></button>
           {isCoin && <button type="button" className={`icon-btn toggle-icon${bell ? ' on' : ''}`} aria-label="알림 코인" aria-pressed={bell} onClick={toggleBell}><Icon.bell /></button>}
-          {onCompare && <button type="button" className="icon-btn" aria-label="비교에 담기" onClick={() => onCompare(keyId)}><Icon.compare /></button>}
           <button type="button" className="icon-btn" aria-label="채팅" onClick={() => onChat(keyId)}><Icon.chat /></button>
         </div>
       </header>
@@ -233,7 +232,10 @@ export function InstrumentView({ keyId, onClose, onChat, onCompare }: { keyId: s
           <div className="sub">
             <span className={`change num ${changeClass(quote.changePct24h)}`}>{formatPct(quote.changePct24h)}</span>
             <span className="small muted">{isCoin ? '24시간' : '전일 대비'}</span>
-            <button type="button" className="target-chip" onClick={() => setTargetOpen(true)}><Icon.bell /> 목표가 알림</button>
+            <span className="chip-row">
+              {onCompare && <button type="button" className="target-chip" aria-label="비교에 담기" onClick={() => onCompare(keyId)}><Icon.compare /> 비교</button>}
+              <button type="button" className="target-chip" onClick={() => setTargetOpen(true)}><Icon.bell /> 목표가 알림</button>
+            </span>
           </div>
         )}
         {quote?.session && <SessionLine session={quote.session} currency={quote.currency} />}

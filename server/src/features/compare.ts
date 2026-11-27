@@ -6,7 +6,8 @@ import type { AiEvent, AiTool, ProviderId } from '../ai/types.js';
 import { summarizeIndicators } from '../market/indicators.js';
 import type { Candle, Currency, Horizon, Quote } from '../market/types.js';
 import { MARKET_CURRENCY, horizonBars, parseInstrumentKey } from '../market/types.js';
-import { type FeatureDeps, fmtNum } from './deps.js';
+import { newsQueryFor } from '../market/news.js';
+import { type FeatureDeps, fmtNum, kstDateTime } from './deps.js';
 import { buildMarketTools, CONFIDENCE, opinionChoices, type Confidence } from './tools.js';
 
 export interface CompareFacts { price: number | null; currency: Currency | null; dayPct: number | null; monthPct: number | null; yearPos: number | null; aboveMa20: boolean | null }
@@ -28,14 +29,21 @@ export type CompareEvent = AiEvent | { type: 'compare'; result: StoredCompare; c
 const REUSE_MS = 10 * 60_000;
 const HORIZON_TEXT: Record<Horizon, string> = { scalp: '단타(하루 안)', swing: '스윙(며칠~몇 주)', long: '장기(몇 달 이상)' };
 
-/** 일봉으로 52주 위치·한 달 등락·20일선 위아래를, 시세로 지금 가격·오늘 등락을 구한다 */
+const DAY = 86400;
+
+/**
+ * 일봉으로 52주 위치·한 달 등락·20일선 위아래를, 시세로 지금 가격·오늘 등락을 구한다.
+ * 기간은 봉 개수가 아니라 날짜로 센다(코인은 주말에도 거래한다). 52주 = 최근 365일, 한 달 = 30일 전 종가.
+ */
 export function computeFacts(daily: Candle[], quote: Quote | null): CompareFacts {
   const closes = daily.map((c) => c.close);
   const price = quote?.price ?? closes.at(-1) ?? null;
   const facts: CompareFacts = { price, currency: quote?.currency ?? null, dayPct: quote?.changePct24h ?? null, monthPct: null, yearPos: null, aboveMa20: null };
-  if (price === null) return facts;
-  if (closes.length > 21) facts.monthPct = (price / closes[closes.length - 1 - 21]! - 1) * 100;
-  const year = daily.slice(-252);
+  if (price === null || daily.length === 0) return facts;
+  const last = daily.at(-1)!.time;
+  const monthAgo = [...daily].reverse().find((c) => c.time <= last - 30 * DAY);
+  if (monthAgo) facts.monthPct = (price / monthAgo.close - 1) * 100;
+  const year = daily.filter((c) => c.time >= last - 365 * DAY);
   if (year.length > 1) {
     const lo = Math.min(...year.map((c) => c.low));
     const hi = Math.max(...year.map((c) => c.high));
@@ -76,6 +84,7 @@ function problemOf(body: CompareBody, keys: string[], choices: Record<string, st
   const ranks = body.ranking.map((r) => r.rank).sort((a, b) => a - b);
   if (ranks.some((r, i) => r !== i + 1)) return `rank는 1부터 ${keys.length}까지 겹치지 않아야 합니다`;
   if (body.pick !== null && !keys.includes(body.pick)) return 'pick은 고른 종목 중 하나이거나 null이어야 합니다';
+  if (body.pick !== null && body.ranking.find((r) => r.rank === 1)?.key !== body.pick) return 'pick은 rank 1인 종목이어야 합니다';
   const bad = body.ranking.find((r) => !choices[r.key]!.includes(r.opinion));
   if (bad) return `${bad.key}의 opinion은 ${choices[bad.key]!.join(' / ')} 중 하나여야 합니다`;
   return null;
@@ -117,15 +126,23 @@ export async function* runCompare(deps: FeatureDeps, args: { keys: string[]; hor
   const facts: Record<string, CompareFacts | null> = {};
   const blocks: string[] = [];
   const choices: Record<string, string[]> = {};
-  for (const [i, key] of args.keys.entries()) {
+  yield { type: 'status', message: `${args.keys.map(label).join(', ')} 보는 중…` };
+  const weekAgo = deps.now() - 7 * DAY * 1000;
+  const loaded = await Promise.all(args.keys.map((key, i) => {
     const inst = insts[i]!;
-    yield { type: 'status', message: `${label(key)} 차트 보는 중…` };
     const bar = horizonBars(inst.market, args.horizon).primary;
-    const [daily, quote, primary] = await Promise.allSettled([
-      deps.market.getCandles(inst, '1D', 260),
+    return Promise.allSettled([
+      deps.market.getCandles(inst, '1D', inst.market === 'coin' ? 370 : 260),
       deps.market.getQuote(inst),
       bar === '1D' ? Promise.resolve(null) : deps.market.getCandles(inst, bar, 60),
+      deps.news ? deps.news.search(newsQueryFor(inst, names[key] ?? null)) : Promise.resolve([]),
     ]);
+  }));
+  for (const [i, key] of args.keys.entries()) {
+    const inst = insts[i]!;
+    const bar = horizonBars(inst.market, args.horizon).primary;
+    const [daily, quote, primary, news] = loaded[i]!;
+    const headlines = news.status === 'fulfilled' ? news.value.filter((n) => n.publishedAt >= weekAgo).slice(0, 3) : [];
     const d = daily.status === 'fulfilled' ? daily.value : [];
     const q = quote.status === 'fulfilled' ? quote.value : null;
     const f = computeFacts(d, q);
@@ -139,6 +156,7 @@ export async function* runCompare(deps: FeatureDeps, args: { keys: string[]; hor
         ? `현재가 ${fmtNum(fx.price!)} ${fx.currency} (24시간 ${pct(fx.dayPct)}), 한 달 ${pct(fx.monthPct)}, 52주 위치 ${fx.yearPos === null ? '알 수 없음' : `${Math.round(fx.yearPos)}%`}(0=최저, 100=최고), 20일선 ${fx.aboveMa20 === null ? '알 수 없음' : fx.aboveMa20 ? '위' : '아래'}`
         : '데이터를 가져오지 못했습니다',
       p.length > 1 ? `[${bar}] 지표 요약: ${JSON.stringify(summarizeIndicators(p))}` : '',
+      headlines.length ? `최근 뉴스: ${headlines.map((n) => `${n.title} (${kstDateTime(Math.floor(n.publishedAt / 1000))})`).join(' / ')}` : '',
       `고를 수 있는 의견: ${choices[key]!.join(' / ')}`,
     ].filter(Boolean).join('\n'));
   }
@@ -150,7 +168,7 @@ export async function* runCompare(deps: FeatureDeps, args: { keys: string[]; hor
   const userText = [`분석 기간: ${HORIZON_TEXT[args.horizon]}`, `고른 종목 ${args.keys.length}개:`, ...blocks].join('\n\n');
   let submitted: CompareBody | null = null;
   let problem: string | null = null;
-  const tools = [...buildMarketTools(deps.market, deps), makeSubmitTool(args.keys, choices, (b, pr) => { submitted = b; problem = pr; })];
+  const tools = [...buildMarketTools(deps.market, deps), makeSubmitTool(args.keys, choices, (b, pr) => { if (submitted) return; submitted = b; problem = pr; })];
   const base = { provider: args.provider, tier: 'standard' as const, purpose: 'interactive' as const, instructions: prompts.COMPARE, tools, webSearch: { maxUses: 3 } };
 
   yield { type: 'status', message: 'AI가 비교하는 중…' };

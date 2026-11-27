@@ -58,8 +58,15 @@ describe('facts', () => {
     expect(f.currency).toBe('USDT');
     expect(f.dayPct).toBe(1.5);
     expect(f.yearPos).toBeCloseTo(100, 5);
-    expect(f.monthPct).toBeCloseTo((351 / 330 - 1) * 100, 6);
+    expect(f.monthPct).toBeCloseTo((351 / 321 - 1) * 100, 6); // 30일 전 종가
     expect(f.aboveMa20).toBe(true);
+  });
+
+  test('the year is the last 365 days by date, not by count (coins trade every day)', () => {
+    const daily: Candle[] = Array.from({ length: 400 }, (_, i) => ({ time: i * 86400, open: 100 + i, high: 100 + i, low: 100 + i, close: 100 + i, volume: 1 }));
+    const f = computeFacts(daily, { instrument: parseInstrumentKey(BTC), price: 300, changePct24h: 0, currency: 'USDT', time: 0 });
+    expect(f.yearPos).toBeCloseTo(((300 - 134) / (499 - 134)) * 100, 6);
+    expect(f.monthPct).toBeCloseTo((300 / 469 - 1) * 100, 6);
   });
 
   test('no candles and no quote means nothing is known', () => {
@@ -182,5 +189,39 @@ describe('compare routes', () => {
     const one = await a.inject({ method: 'GET', url: `/api/compare/${h[0].id}`, headers: { cookie } });
     expect(one.json().result).toMatchObject({ pick: BTC, keys: [BTC, ETH] });
     expect((await a.inject({ method: 'GET', url: '/api/compare/999', headers: { cookie } })).statusCode).toBe(404);
+  });
+});
+
+describe('review fixes', () => {
+  test('a good answer is kept even if the model submits again badly in the same turn', async () => {
+    const bad: FakeStep = { tool: 'submit_comparison', input: { pick: ETH, confidence: '높음', summary: 'x', ranking: [{ key: ETH, rank: 1, opinion: '매수', reason: 'a', risk: 'b' }] } };
+    const s = setup([[good(), bad]]);
+    const ev = await collect(runCompare(s.deps, { keys: [BTC, ETH], horizon: 'swing', provider: 'claude' }));
+    expect(ev.find((e) => e.type === 'compare')).toMatchObject({ result: { pick: ETH } });
+    expect(s.ai.calls()).toBe(1);
+  });
+
+  test('the pick has to be the one ranked first', async () => {
+    const wrong: FakeStep = { tool: 'submit_comparison', input: { ...(good() as { input: object }).input, pick: BTC } };
+    const s = setup([[wrong], [good()]]);
+    await collect(runCompare(s.deps, { keys: [BTC, ETH], horizon: 'swing', provider: 'claude' }));
+    expect(s.ai.calls()).toBe(2);
+  });
+
+  test('coins get a full year of daily candles, and recent headlines go to the AI up front', async () => {
+    const limits: number[] = [];
+    const s = setup([[good()]]);
+    const market = s.deps.market;
+    const deps = {
+      ...s.deps,
+      market: { ...market, getCandles: (i: Parameters<typeof market.getCandles>[0], bar: Parameters<typeof market.getCandles>[1], limit: number) => { if (bar === '1D') limits.push(limit); return market.getCandles(i, bar, limit); } } as typeof market,
+      news: { search: async (q: string) => [{ title: `${q.includes('비트') ? '비트코인' : '이더리움'} 현물 ETF 자금 유입`, url: 'https://n.example/1', source: '뉴스', publishedAt: NOW - 3600_000 }] },
+      instruments: { nameOf: (k: string) => (k === BTC ? '비트코인' : '이더리움') },
+    };
+    await collect(runCompare(deps, { keys: [BTC, ETH], horizon: 'swing', provider: 'claude' }));
+    expect(limits).toEqual([370, 370]);
+    const text = s.ai.requests[0]!.userText;
+    expect(text).toContain('비트코인 현물 ETF 자금 유입');
+    expect(text).toContain('이더리움 현물 ETF 자금 유입');
   });
 });

@@ -23,6 +23,14 @@ const MAX = 4;
 const HORIZONS: { value: Horizon; label: string }[] = [{ value: 'scalp', label: '단타' }, { value: 'swing', label: '스윙' }, { value: 'long', label: '장기' }];
 const HORIZON_LABEL: Record<Horizon, string> = { scalp: '단타', swing: '스윙', long: '장기' };
 const STORE = 'compare.pick';
+const LAST = 'compare.last';
+
+function readLast(): CompareResult | null {
+  try { return JSON.parse(sessionStorage.getItem(LAST) ?? 'null'); } catch { return null; }
+}
+
+/** 의견 색: 사는 쪽 / 기다림 / 파는 쪽 */
+const opClass = (op: string) => (op === '매수' || op === '롱 진입' ? 'buy' : op === '매도' || op === '숏 진입' ? 'sell' : 'hold');
 
 function readSaved(): { keys: Pick[]; horizon: Horizon } {
   try {
@@ -53,13 +61,22 @@ export function CompareView({ seed, onOpen, onAsk }: { seed: string | null; onOp
     const saved = readSaved().keys;
     return seed && !saved.some((p) => p.key === seed) && saved.length < MAX ? [...saved, { key: seed, name: null }] : saved;
   });
+  // 4개가 다 찼을 때 종목 화면에서 담은 것: 하나를 빼면 그 자리에 들어간다
+  const [pending, setPending] = useState<Pick | null>(() => {
+    const saved = readSaved().keys;
+    return seed && !saved.some((p) => p.key === seed) && saved.length >= MAX ? { key: seed, name: null } : null;
+  });
   const [horizon, setHorizon] = useState<Horizon>(() => readSaved().horizon);
   const [suggest, setSuggest] = useState<Suggest[]>([]);
   const [past, setPast] = useState<Past[]>([]);
   const [searching, setSearching] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<CompareResult | null>(null);
+  const [result, setResultState] = useState<CompareResult | null>(readLast);
+  const setResult = (r: CompareResult) => {
+    setResultState(r);
+    try { sessionStorage.setItem(LAST, JSON.stringify(r)); } catch { /* 못 남겨도 괜찮다 */ }
+  };
   const abort = useRef<AbortController | null>(null);
 
   const loadPast = () => api<{ items: Past[] }>('/api/compare/history').then((r) => setPast(r.items)).catch(() => undefined);
@@ -88,16 +105,22 @@ export function CompareView({ seed, onOpen, onAsk }: { seed: string | null; onOp
   function add(key: string, name: string | null = null) {
     setPicks((list) => (list.some((p) => p.key === key) || list.length >= MAX ? list : [...list, { key, name }]));
   }
-  const remove = (key: string) => setPicks((list) => list.filter((p) => p.key !== key));
+  function remove(key: string) {
+    setPicks((list) => {
+      const next = list.filter((p) => p.key !== key);
+      return pending && !next.some((p) => p.key === pending.key) ? [...next, pending] : next;
+    });
+    setPending(null);
+  }
 
-  async function run(provider?: ProviderId) {
+  async function run(provider?: ProviderId, keys: string[] = picks.map((p) => p.key), h: Horizon = horizon) {
     abort.current?.abort();
     const ctrl = new AbortController();
     abort.current = ctrl;
     setError(null);
     setStatus('준비하는 중…');
     const who = provider ?? (await aiReady()).preferred;
-    await streamSse('/api/compare', { keys: picks.map((p) => p.key), horizon, provider: who }, (type, d) => {
+    await streamSse('/api/compare', { keys, horizon: h, provider: who }, (type, d) => {
       if (type === 'status') setStatus(d.message);
       if (type === 'compare') { setResult(d.result); void loadPast(); }
       if (type === 'error') setError(d.message);
@@ -106,6 +129,8 @@ export function CompareView({ seed, onOpen, onAsk }: { seed: string | null; onOp
   }
 
   async function openPast(id: number) {
+    abort.current?.abort();
+    setStatus(null);
     const r = await api<{ result: CompareResult }>(`/api/compare/${id}`).catch(() => null);
     if (r) { setResult(r.result); setError(null); }
   }
@@ -142,6 +167,7 @@ export function CompareView({ seed, onOpen, onAsk }: { seed: string | null; onOp
             <button type="button" className="cmp-add" aria-label="종목 추가" onClick={() => setSearching(true)}><Icon.plus />{picks.length === 0 ? '종목 담기' : '추가'}</button>
           )}
         </div>
+        {pending && <p className="cmp-hint" role="status">{pending.name ?? short(pending.key)} — 4개까지 담을 수 있어요. 하나를 빼면 바로 담을게요</p>}
         {quick.length > 0 && (
           <div className="cmp-quick" aria-label="보유·즐겨찾기에서 담기">
             {quick.map((s) => (
@@ -160,7 +186,7 @@ export function CompareView({ seed, onOpen, onAsk }: { seed: string | null; onOp
       </section>
 
       {result && <ResultCard r={result} nameOf={(k) => nameOf(k, result.names)} onOpen={onOpen} busy={busy}
-        onOther={other ? () => void run(other) : undefined} otherLabel={other ? `${PROVIDER_LABEL[other]} 의견` : ''} onAsk={() => askMore(result)} />}
+        onOther={other ? () => void run(other, result.keys, result.horizon) : undefined} otherLabel={other ? `${PROVIDER_LABEL[other]} 의견` : ''} onAsk={() => askMore(result)} />}
 
       {past.length > 0 && (
         <section className="cmp-past">
@@ -201,7 +227,7 @@ function ResultCard({ r, nameOf, onOpen, onOther, otherLabel, onAsk, busy }: {
             <div className="cmp-rank-body">
               <button type="button" className="cmp-rank-name" onClick={() => onOpen(x.key)}>
                 <Avatar inst={parseKey(x.key, nameOf(x.key))} logoKey={x.key} />{nameOf(x.key)}
-                <span className={`cmp-op op-${x.opinion}`}>{x.opinion}</span>
+                <span className={`cmp-op op-${opClass(x.opinion)}`}>{x.opinion}</span>
               </button>
               <p className="cmp-why">{x.reason}</p>
               <p className="cmp-risk">{x.risk}</p>
@@ -210,8 +236,8 @@ function ResultCard({ r, nameOf, onOpen, onOther, otherLabel, onAsk, busy }: {
         ))}
       </ol>
       <div className="cmp-table-wrap">
-        <table className="cmp-table" aria-label="나란히 보기">
-          <thead><tr><th />{order.map((k) => <th key={k} scope="col">{nameOf(k)}</th>)}</tr></thead>
+        <table className={`cmp-table n${order.length}`} aria-label="나란히 보기">
+          <thead><tr><th />{order.map((k) => <th key={k} scope="col"><span className="cmp-th">{nameOf(k)}</span></th>)}</tr></thead>
           <tbody>
             <tr><th scope="row">가격</th>{order.map((k) => { const f = r.facts[k]; return <td key={k} className="num">{f?.price != null && f.currency ? formatPrice(f.price, f.currency) : '—'}</td>; })}</tr>
             <tr><th scope="row">오늘</th>{order.map((k) => <td key={k} className={`num ${changeClass(r.facts[k]?.dayPct)}`}>{signed(r.facts[k]?.dayPct ?? null)}</td>)}</tr>

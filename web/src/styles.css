@@ -935,8 +935,6 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .cmp-rank-name { display: flex; align-items: center; gap: 8px; width: 100%; padding: 0; border: none; background: none; text-align: left; font-size: 15.5px; font-weight: 800; }
 .cmp-rank-name .avatar { width: 28px; height: 28px; font-size: 11px; }
 .cmp-op { margin-left: auto; flex: none; padding: 2px 9px; border-radius: 7px; font-size: 12px; font-weight: 800; background: var(--surface-2); color: var(--muted); }
-.cmp-op.op-매수, .cmp-op.op-롱\ 진입 { background: var(--up-soft); color: var(--up); }
-.cmp-op.op-매도, .cmp-op.op-숏\ 진입 { background: var(--down-soft); color: var(--down); }
 .cmp-why { margin: 6px 0 0; font-size: 14px; color: var(--ink-2); }
 .cmp-risk { margin: 3px 0 0; font-size: 13px; color: var(--muted); }
 .cmp-risk::before { content: '위험 · '; font-weight: 700; }
@@ -956,3 +954,12 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .cmp-past-row { display: grid; gap: 2px; width: 100%; padding: 12px 14px; border: none; background: none; text-align: left; }
 .cmp-past-names { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmp-past-row small { color: var(--muted); font-size: 12.5px; }
+/* 비교 다듬기: 표의 줄 이름은 옆으로 밀어도 보이게, 긴 이름은 잘라서, 4개일 땐 막대를 빼고 숫자만 */
+.cmp-table tbody th { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+.cmp-table thead th:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+.cmp-th { display: block; max-width: 6.5em; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmp-table.n4 .cmp-year i { display: none; }
+.cmp-op.op-buy { background: var(--up-soft); color: var(--up); }
+.cmp-op.op-sell { background: var(--down-soft); color: var(--down); }
+.chip-row { margin-left: auto; display: inline-flex; gap: 6px; }
+.chip-row .target-chip { margin-left: 0; }
