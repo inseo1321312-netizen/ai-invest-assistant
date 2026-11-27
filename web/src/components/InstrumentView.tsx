@@ -250,7 +250,6 @@ export function InstrumentView({ keyId, onClose, onChat }: { keyId: string; onCl
             <button key={i.key} type="button" className="toggle" aria-pressed={indicators[i.key]} onClick={() => setIndicators((s) => ({ ...s, [i.key]: !s[i.key] }))}>{i.label}</button>
           ))}
         </div>
-        <p className="hint">▲▼는 크게 오르내린 캔들이에요. 캔들을 누르면 왜 움직였는지 AI가 찾아봐요.</p>
       </section>
       {stats && (
         <dl className="stats rise" aria-label="주요 지표">

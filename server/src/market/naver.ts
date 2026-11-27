@@ -62,7 +62,8 @@ function withSession(quote: Quote, d: Realtime): Quote {
   const extended = o && kind && over !== null && over > 0 && quote.price > 0
     ? { kind, open: o.overMarketStatus === 'OPEN', price: over, changePct: ((over - quote.price) / quote.price) * 100, tradedAt: unixOf(o.localTradedAt) } as const
     : null;
-  return { ...quote, session: { open: d.marketStatus === 'OPEN', tradedAt: unixOf(d.localTradedAt), extended } };
+  // 네이버는 시간외(NXT 애프터마켓 등)가 열려 있으면 OPEN이라고 한다: 그때 정규장은 닫힌 것으로 본다
+  return { ...quote, session: { open: d.marketStatus === 'OPEN' && !extended?.open, tradedAt: unixOf(d.localTradedAt), extended } };
 }
 
 function signedPct(ratio: unknown, code: unknown): number {

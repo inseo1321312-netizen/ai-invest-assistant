@@ -51,7 +51,7 @@ describe('chat upgrade', () => {
     expect(await screen.findByText('오늘 14%')).toBeTruthy(); // $0.42 / $3
     await userEvent.click(screen.getByRole('button', { name: /사용량/ }));
     const sheet = await screen.findByRole('dialog', { name: '사용량' });
-    expect(within(sheet).getByText('12 / 약 50회')).toBeTruthy();
+    expect(within(sheet).getByText('12회')).toBeTruthy(); // 최근 5시간 요청
     expect(within(sheet).getByRole('link', { name: 'ChatGPT 사용량 열기' }).getAttribute('href')).toBe('https://chatgpt.com/settings/usage');
   });
 

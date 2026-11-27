@@ -68,6 +68,12 @@ describe('quotes', () => {
     expect((await client(bare).getQuote(samsung)).session).toBeUndefined();
   });
 
+  test('while the after-hours session runs, the regular market counts as closed', async () => {
+    const f = fakeFetch({ '/api/realtime/domestic/stock/005930': () => ({ datas: [{ closePrice: '178,400', marketStatus: 'OPEN', localTradedAt: '2026-11-27T16:37:31+09:00', overMarketPriceInfo: { tradingSessionType: 'AFTER_MARKET', overMarketStatus: 'OPEN', overPrice: '178,400', localTradedAt: '2026-11-27T16:37:31+09:00' } }] }) });
+    const q = await client(f).getQuote(samsung);
+    expect(q.session).toMatchObject({ open: false, extended: { kind: 'after', open: true, price: 178400 } });
+  });
+
   test('a pre-market price that is not a number is left out', async () => {
     const f = fakeFetch({ '/api/realtime/domestic/stock/005930': () => ({ datas: [{ closePrice: '171,500', marketStatus: 'CLOSE', localTradedAt: 'nonsense', overMarketPriceInfo: { tradingSessionType: 'PRE_MARKET', overMarketStatus: 'OPEN', overPrice: '-' } }] }) });
     expect((await client(f).getQuote(samsung)).session).toEqual({ open: false, tradedAt: null, extended: null });

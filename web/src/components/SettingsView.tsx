@@ -15,7 +15,17 @@ interface Settings {
   keys: { claude: boolean; openai: boolean; kis: boolean; push: boolean };
   apiKeys?: { claude: KeyInfo; openai: KeyInfo };
 }
-interface Usage { today: { interactive: number; scheduled: number }; month: number; gptMonth: number; requests?: { gpt5h: number; gptToday: number } }
+interface Usage {
+  today: { interactive: number; scheduled: number }; month: number; gptMonth: number; requests?: { gpt5h: number; gptToday: number };
+  gptLimitHitAt?: number | null; gptWindow?: { usedPct: number; windowMinutes: number | null; resetAt: number | null; at: number } | null;
+}
+
+/** ChatGPT 구독: 실제 5시간 사용률이 있으면 %, 없으면 여유/한도(숫자를 지어내지 않는다) */
+function gptStatus(u: Usage): string {
+  const w = u.gptWindow;
+  if (w && (w.resetAt ?? w.at + (w.windowMinutes ?? 300) * 60_000) > Date.now()) return `5시간 ${Math.round(w.usedPct)}%`;
+  return u.gptLimitHitAt && Date.now() - u.gptLimitHitAt < 5 * 3600_000 ? '한도 도달' : '여유';
+}
 type BudgetKey = keyof Settings['budget'];
 
 const TIER_LABEL = { light: '가벼운', standard: '기본', deep: '심층' } as const;
@@ -150,7 +160,7 @@ export function SettingsView({ onClose }: { onClose?: () => void }) {
           <UsageBar label="오늘 직접 사용" used={usage.today.interactive} limit={s.budget.interactiveDailyUsd} />
           <UsageBar label="오늘 예약 작업" used={usage.today.scheduled} limit={s.budget.scheduledDailyUsd} />
           <UsageBar label="이번 달" used={usage.month} limit={s.budget.monthlyUsd} />
-          <div className="kv num"><span>ChatGPT 요청</span><span>5시간 {usage.requests?.gpt5h ?? 0}회 · 오늘 {usage.requests?.gptToday ?? 0}회</span></div>
+          <div className="kv num"><span>ChatGPT 구독</span><span>{gptStatus(usage)}</span></div>
         </section>
       )}
 

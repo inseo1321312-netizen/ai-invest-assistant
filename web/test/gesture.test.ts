@@ -9,29 +9,40 @@ test('a dragged stretch knows its start, end and change from the close before it
   expect(rangeOf(candles, -5, 99)).toMatchObject({ from: 1000, to: 1240, count: 5 });
 });
 
-test('one finger dragging picks a stretch; a tiny wobble does not', () => {
+test('one finger dragging sideways picks a stretch; a tiny wobble does not', () => {
   const h = { onPreview: vi.fn(), onPick: vi.fn(), onPan: vi.fn() };
   const g = createGesture(h);
-  g.down(1, 100);
-  g.move(1, 104);
+  g.down(1, 100, 50);
+  g.move(1, 106, 51);
   g.up(1);
   expect(h.onPick).not.toHaveBeenCalled();
-  g.down(1, 100);
-  g.move(1, 160);
+  g.down(1, 100, 50);
+  g.move(1, 160, 55);
   expect(h.onPreview).toHaveBeenLastCalledWith({ x0: 100, x1: 160 });
   g.up(1);
   expect(h.onPick).toHaveBeenCalledWith(100, 160);
   expect(h.onPreview).toHaveBeenLastCalledWith(null);
 });
 
+test('a mostly up-or-down swipe (scrolling the page) never picks, even if it drifts sideways later', () => {
+  const h = { onPreview: vi.fn(), onPick: vi.fn(), onPan: vi.fn() };
+  const g = createGesture(h);
+  g.down(1, 100, 100);
+  g.move(1, 110, 70); // 위로 30, 옆으로 10: 세로 동작으로 정해진다
+  g.move(1, 180, 60); // 나중에 옆으로 가도 무시
+  g.up(1);
+  expect(h.onPreview).not.toHaveBeenCalled();
+  expect(h.onPick).not.toHaveBeenCalled();
+});
+
 test('two fingers cancel the pick and slide the chart instead (pinch zoom is the chart’s own)', () => {
   const h = { onPreview: vi.fn(), onPick: vi.fn(), onPan: vi.fn() };
   const g = createGesture(h);
-  g.down(1, 100);
-  g.move(1, 150);
-  g.down(2, 200);
-  g.move(1, 170);
-  g.move(2, 220);
+  g.down(1, 100, 50);
+  g.move(1, 150, 50);
+  g.down(2, 200, 50);
+  g.move(1, 170, 50);
+  g.move(2, 220, 50);
   g.up(1);
   g.up(2);
   expect(h.onPick).not.toHaveBeenCalled();

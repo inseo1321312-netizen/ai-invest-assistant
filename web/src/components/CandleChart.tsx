@@ -4,7 +4,8 @@ import { api, ApiError } from '../api';
 import { bollinger, macd, rsi, sma } from '../indicators';
 import { bigMoves } from '../bigMoves';
 import type { Bar, Candle } from '../types';
-import { formatPrice, formatTimeKst, formatPct, wonMode } from '../format';
+import { axisPrice, formatPct, rangeLabel } from '../format';
+import type { Currency } from '../types';
 import { createGesture, rangeOf, type RangeInfo } from '../chartGesture';
 
 /** 차트 라이브러리는 UTC로 그리므로 한국 시간으로 보이게 9시간 밀어서 넣고, 클릭하면 되돌린다. */
@@ -23,6 +24,8 @@ function cssVar(name: string, fallback: string): string {
   if (typeof window === 'undefined') return fallback;
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
+
+const currencyOf = (key: string): Currency => (key.startsWith('kr:') ? 'KRW' : key.startsWith('us:') ? 'USD' : 'USDT');
 
 export function CandleChart({ keyId, bar, onRangePick, markers = [], height = 300, indicators = DEFAULT_INDICATORS, from = null, to = null, autoMarkers = false }: {
   keyId: string;
@@ -43,7 +46,7 @@ export function CandleChart({ keyId, bar, onRangePick, markers = [], height = 30
   const [ohlc, setOhlc] = useState<{ open: number; high: number; low: number; close: number } | null>(null);
   const pickRef = useRef(onRangePick);
   pickRef.current = onRangePick;
-  const [sel, setSel] = useState<{ left: number; width: number; info: RangeInfo | null } | null>(null);
+  const [sel, setSel] = useState<{ left: number; width: number; height: number; info: RangeInfo | null } | null>(null);
   const extraPanes = Number(indicators.rsi) + Number(indicators.macd);
   const totalHeight = height + extraPanes * 90;
 
@@ -72,8 +75,8 @@ export function CandleChart({ keyId, bar, onRangePick, markers = [], height = 30
           // 한 손가락 끌기는 구간 고르기에 쓴다(옆으로 밀기는 두 손가락), 벌리고 모으면 확대
           handleScroll: { vertTouchDrag: false, mouseWheel: false, pressedMouseMove: !onRangePick, horzTouchDrag: !onRangePick },
           handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: true },
-          // 원화 단위면 가격 눈금도 원으로
-          localization: { locale: 'ko-KR', ...(wonMode() && !keyId.startsWith('kr:') ? { priceFormatter: (p: number) => formatPrice(p, keyId.startsWith('us:') ? 'USD' : 'USDT') } : {}) },
+          // 가격 눈금: 원은 소수 없이 쉼표, 원화 단위면 달러·USDT도 원으로
+          localization: { locale: 'ko-KR', priceFormatter: (p: number) => axisPrice(p, currencyOf(keyId)) },
         });
         const t = (s: number) => (s + KST) as UTCTimestamp;
         const closes = candles.map((c) => c.close);
@@ -121,8 +124,8 @@ export function CandleChart({ keyId, bar, onRangePick, markers = [], height = 30
         const allMarkers = [
           ...markers.map((m) => ({ time: t(m.time), position: 'aboveBar' as const, color: ai, shape: 'arrowDown' as const, text: m.text })),
           ...(autoMarkers ? bigMoves(candles).map((m) => (m.pct > 0
-            ? { time: t(m.time), position: 'belowBar' as const, color: up, shape: 'arrowUp' as const, text: `+${m.pct.toFixed(1)}%` }
-            : { time: t(m.time), position: 'aboveBar' as const, color: down, shape: 'arrowDown' as const, text: `${m.pct.toFixed(1)}%` })) : []),
+            ? { time: t(m.time), position: 'belowBar' as const, color: up, shape: 'arrowUp' as const, size: 0.7 }
+            : { time: t(m.time), position: 'aboveBar' as const, color: down, shape: 'arrowDown' as const, size: 0.7 })) : []),
         ].sort((a, b) => a.time - b.time);
         if (allMarkers.length) createSeriesMarkers(candleSeries, allMarkers);
         if (from !== null && to !== null) chart.timeScale().setVisibleRange({ from: t(from), to: t(to) });
@@ -136,13 +139,20 @@ export function CandleChart({ keyId, bar, onRangePick, markers = [], height = 30
           return a === null || b === null ? null : rangeOf(candles, a, b);
         };
         const gesture = createGesture({
-          onPreview: (s) => setSel(s ? { left: Math.min(s.x0, s.x1), width: Math.abs(s.x1 - s.x0), info: range(s.x0, s.x1) } : null),
-          onPick: (x0, x1) => { const r = range(x0, x1); if (r) pickRef.current?.(r.from, r.to, r.pct); },
+          onPreview: (s) => {
+            if (!s) { setSel(null); return; }
+            const w = ts.width();
+            const a = Math.min(w, Math.max(0, s.x0));
+            const b = Math.min(w, Math.max(0, s.x1));
+            const paneH = chart.panes()[0]?.getHeight() ?? height;
+            setSel({ left: Math.min(a, b), width: Math.abs(b - a), height: paneH, info: range(a, b) });
+          },
+          onPick: (x0, x1) => { const w = ts.width(); const r = range(Math.min(w, Math.max(0, x0)), Math.min(w, Math.max(0, x1))); if (r) pickRef.current?.(r.from, r.to, r.pct); },
           onPan: (dx) => ts.scrollToPosition(ts.scrollPosition() - dx / ts.options().barSpacing, false),
         });
         const xOf = (e: PointerEvent) => e.clientX - el.getBoundingClientRect().left;
-        const onDown = (e: PointerEvent) => { if (pickRef.current) gesture.down(e.pointerId, xOf(e)); };
-        const onMoveP = (e: PointerEvent) => gesture.move(e.pointerId, xOf(e));
+        const onDown = (e: PointerEvent) => { if (pickRef.current) gesture.down(e.pointerId, xOf(e), e.clientY); };
+        const onMoveP = (e: PointerEvent) => gesture.move(e.pointerId, xOf(e), e.clientY);
         const onUp = (e: PointerEvent) => gesture.up(e.pointerId);
         const onCancel = () => gesture.cancel();
         el.addEventListener('pointerdown', onDown);
@@ -166,7 +176,14 @@ export function CandleChart({ keyId, bar, onRangePick, markers = [], height = 30
 
   return (
     <div style={{ position: 'relative' }}>
-      {ohlc && !loading && !error && (
+      {sel?.info && (
+        <div className="ohlc range-line num" aria-hidden="true">
+          <span>{rangeLabel(sel.info.from, sel.info.to, bar)}</span>
+          <span>캔들 {sel.info.count}개</span>
+          {sel.info.pct !== null && <span className={sel.info.pct >= 0 ? 'up' : 'down'}>{formatPct(sel.info.pct)}</span>}
+        </div>
+      )}
+      {!sel?.info && ohlc && !loading && !error && (
         <div className="ohlc num" aria-hidden="true">
           <span>시 <b>{fmt(ohlc.open)}</b></span><span>고 <b>{fmt(ohlc.high)}</b></span><span>저 <b>{fmt(ohlc.low)}</b></span><span>종 <b>{fmt(ohlc.close)}</b></span>
           <span className={ohlc.close >= ohlc.open ? 'up' : 'down'}>{ohlc.open ? `${ohlc.close >= ohlc.open ? '+' : ''}${(((ohlc.close - ohlc.open) / ohlc.open) * 100).toFixed(2)}%` : ''}</span>
@@ -174,14 +191,7 @@ export function CandleChart({ keyId, bar, onRangePick, markers = [], height = 30
       )}
       <div ref={box} role="img" aria-label={`${keyId} ${bar} 차트`} className={onRangePick ? 'chart-box pickable' : 'chart-box'} style={{ height: totalHeight, width: '100%' }} />
       {sel && (
-        <div className="range-sel" style={{ left: sel.left, width: sel.width, height }} aria-hidden="true">
-          {sel.info && (
-            <span className="range-tag num">
-              {formatTimeKst(sel.info.from).replace('-', '/')} ~ {formatTimeKst(sel.info.to).replace('-', '/')}
-              {sel.info.pct !== null && <b className={sel.info.pct >= 0 ? 'up' : 'down'}> {formatPct(sel.info.pct)}</b>}
-            </span>
-          )}
-        </div>
+        <div className="range-sel" style={{ left: sel.left, width: sel.width, height: sel.height }} aria-hidden="true" />
       )}
       {loading && !error && <div className="skeleton" style={{ position: 'absolute', inset: 0 }} aria-hidden="true" />}
       {error && <p className="notice" style={{ margin: 0 }}>{error}</p>}

@@ -16,7 +16,7 @@ const MODELS = {
   },
   defaults: { claude: { light: 'a', standard: 'claude-sonnet-5-5', deep: 'c' }, gpt: { light: 'x', standard: 'gpt-6.1-sol', deep: 'z' } },
 };
-const USAGE = { today: { interactive: 0.75, scheduled: 0 }, month: 1, gptMonth: 0, limits: { interactiveDailyUsd: 3, scheduledDailyUsd: 1.5, monthlyUsd: 80 }, requests: { gpt5h: 10, gptToday: 12, claudeToday: 0 }, gptLimitHitAt: null, gptCapEstimate: 40 };
+const USAGE = { today: { interactive: 0.75, scheduled: 0 }, month: 1, gptMonth: 0, limits: { interactiveDailyUsd: 3, scheduledDailyUsd: 1.5, monthlyUsd: 80 }, requests: { gpt5h: 10, gptToday: 12, claudeToday: 0 }, gptLimitHitAt: null, gptWindow: { usedPct: 37, windowMinutes: 300, resetAt: Date.now() + 3600_000, at: Date.now() } };
 
 function chatServer(over: Record<string, Parameters<typeof mockServer>[0][string]> = {}) {
   return mockServer({
@@ -72,12 +72,23 @@ test('thinking depth is chosen next to the message box and sent with it', async 
   await waitFor(() => expect(s.calls.find((c) => c.url.pathname === '/api/chat')?.body).toMatchObject({ depth: 'deep', provider: 'gpt' }));
 });
 
-test('usage shows as a ring with how much is used', async () => {
+test('ChatGPT subscription usage shows the real 5-hour percent as a ring', async () => {
   chatServer();
   render(<ChatView keyId={null} />);
   const pill = await screen.findByRole('button', { name: /사용량/ });
   await waitFor(() => expect(pill.querySelector('svg circle.ring-fill')).not.toBeNull());
-  expect(pill.textContent).toContain('25%'); // ChatGPT 구독: 5시간 10회 / 추정 40회
+  await waitFor(() => expect(pill.textContent).toContain('37%'));
+});
+
+test('without a real number it never guesses: 여유, or 한도 right after hitting the limit', async () => {
+  chatServer({ '/api/usage': () => ({ ...USAGE, gptWindow: null }) });
+  const first = render(<ChatView keyId={null} />);
+  await waitFor(() => expect(screen.getByRole('button', { name: /사용량/ }).textContent).toContain('여유'));
+  expect(screen.getByRole('button', { name: /사용량/ }).textContent).not.toMatch(/d+%/);
+  first.unmount();
+  chatServer({ '/api/usage': () => ({ ...USAGE, gptWindow: null, gptLimitHitAt: Date.now() - 600_000 }) });
+  render(<ChatView keyId={null} />);
+  await waitFor(() => expect(screen.getByRole('button', { name: /사용량/ }).textContent).toContain('한도'));
 });
 
 test('explaining a dragged stretch asks GPT first when there is no Claude key, with both ends', async () => {

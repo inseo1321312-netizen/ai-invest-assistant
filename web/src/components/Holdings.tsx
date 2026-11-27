@@ -43,11 +43,11 @@ export function Holdings({ market, onOpen }: { market: MarketId; onOpen: (key: s
               <Avatar inst={h.instrument} />
               <span className="row-name"><DisplayName inst={h.instrument} /></span>
               <PriceCell price={h.quote?.price ?? null} currency={h.quote?.currency ?? 'USDT'} change={h.quote?.changePct24h ?? null} />
-              <span className="row-sub num">
+              <span className="row-sub num hold-sub">
                 {h.quantity !== null ? `${h.quantity.toLocaleString('ko-KR')}${unit(h.market)}` : '수량 모름'}
                 {h.avgPrice !== null && h.quote && ` · 평단 ${formatPrice(h.avgPrice, h.quote.currency)}`}
+                {h.plPct !== null && <> · <span className={`hold-pl ${changeClass(h.plPct)}`}>수익 {formatPct(h.plPct)}</span></>}
               </span>
-              <span className={`hold-pl num ${changeClass(h.plPct)}`}>{h.plPct !== null ? formatPct(h.plPct) : ''}</span>
             </button>
             {editing && (
               <button type="button" className="remove-btn" aria-label={`${h.name ?? h.instrument.symbol} 보유 종목에서 빼기`} onClick={() => remove(h.key)}>빼기</button>

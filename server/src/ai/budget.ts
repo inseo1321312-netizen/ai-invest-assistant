@@ -5,6 +5,8 @@ export interface BudgetLimits { scheduledDailyUsd: number; interactiveDailyUsd: 
 export const DEFAULT_LIMITS: BudgetLimits = { scheduledDailyUsd: 1.5, interactiveDailyUsd: 3, monthlyUsd: 80, gptMonthlyUsd: 5 };
 const LIMITS_KEY = 'settings.budget';
 
+export interface GptWindow { usedPct: number; windowMinutes: number | null; resetAt: number | null; at: number }
+
 export interface UsageSummary {
   today: { interactive: number; scheduled: number };
   month: number;
@@ -12,8 +14,8 @@ export interface UsageSummary {
   limits: BudgetLimits;
   requests: { gpt5h: number; gptToday: number; claudeToday: number };
   gptLimitHitAt: number | null;
-  /** 한도에 걸렸을 때 5시간 안 요청 수(추정 한도). 아직 걸린 적 없으면 null */
-  gptCapEstimate: number | null;
+  /** ChatGPT가 답과 함께 알려 준 5시간 사용률(%). 알려 준 적 없으면 null */
+  gptWindow: GptWindow | null;
 }
 
 export interface Budget {
@@ -24,6 +26,8 @@ export interface Budget {
   setLimits(l: BudgetLimits): void;
   /** 공급자 쪽 사용량 한도에 걸린 시각을 기억한다(ChatGPT Plus 5시간 한도 등) */
   noteLimitHit(provider: ProviderId): void;
+  /** ChatGPT 구독 응답 헤더의 실제 사용률을 기억한다 */
+  noteGptWindow(w: { usedPct: number; windowMinutes: number | null; resetAfterSec: number | null }): void;
 }
 
 /** 한국 시간 기준 'YYYY-MM-DD' */
@@ -46,9 +50,10 @@ export function createBudget(db: Db, now: () => number): Budget {
   return {
     limits,
     setLimits(l) { db.kvSet(LIMITS_KEY, l); },
-    noteLimitHit(provider) {
-      db.kvSet(`limitHit.${provider}`, now());
-      if (provider === 'gpt') db.kvSet('limitCap.gpt', n(countSince.get('gpt', now() - 5 * 3600_000)));
+    noteLimitHit(provider) { db.kvSet(`limitHit.${provider}`, now()); },
+    noteGptWindow(w) {
+      const t = now();
+      db.kvSet('gptWindow', { usedPct: w.usedPct, windowMinutes: w.windowMinutes, resetAt: w.resetAfterSec !== null ? t + w.resetAfterSec * 1000 : null, at: t } satisfies GptWindow);
     },
 
     check(purpose, provider) {
@@ -87,7 +92,7 @@ export function createBudget(db: Db, now: () => number): Budget {
           claudeToday: n(countDay.get('claude', day)),
         },
         gptLimitHitAt: db.kvGet<number>('limitHit.gpt'),
-        gptCapEstimate: db.kvGet<number>('limitCap.gpt'),
+        gptWindow: db.kvGet<GptWindow>('gptWindow'),
       };
     },
   };

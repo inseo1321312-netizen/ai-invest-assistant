@@ -87,7 +87,14 @@ export function createGptAdapter(opts: {
         while (!stream) {
           try {
             const client = await makeClient(refreshed);
-            stream = (await client.responses.create(body as never, { signal: req.signal })) as unknown as AsyncIterable<any>;
+            const { data, response } = await client.responses.create(body as never, { signal: req.signal }).withResponse();
+            stream = data as unknown as AsyncIterable<any>;
+            // ChatGPT 구독은 5시간 사용률을 헤더로 알려 줄 때가 있다: 있으면 그대로 기억(추측하지 않는다)
+            const used = Number(response.headers.get('x-codex-primary-used-percent'));
+            if (mode === 'siwc' && response.headers.has('x-codex-primary-used-percent') && Number.isFinite(used)) {
+              const num = (h: string) => { const v = response.headers.get(h); return v !== null && Number.isFinite(Number(v)) ? Number(v) : null; };
+              opts.budget?.noteGptWindow({ usedPct: used, windowMinutes: num('x-codex-primary-window-minutes'), resetAfterSec: num('x-codex-primary-reset-after-seconds') });
+            }
           } catch (err) {
             if (err instanceof OpenAI.APIError) {
               if (err.status === 401 && mode === 'siwc' && !refreshed) { refreshed = true; continue; }

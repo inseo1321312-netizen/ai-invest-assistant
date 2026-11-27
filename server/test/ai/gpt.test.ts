@@ -240,3 +240,34 @@ describe('gpt thinking depth', () => {
     expect(JSON.parse(String(f.calls[0]!.init?.body)).reasoning).toBeUndefined();
   });
 });
+
+describe('ChatGPT subscription usage', () => {
+  test('the real 5-hour usage that ChatGPT reports with an answer is remembered', async () => {
+    const db = openDb(':memory:');
+    const clock = makeClock();
+    const f = fakeFetch({ '/v1/responses': () => {
+      const r = textTurn('답');
+      r.headers.set('x-codex-primary-used-percent', '37');
+      r.headers.set('x-codex-primary-window-minutes', '300');
+      r.headers.set('x-codex-primary-reset-after-seconds', '3600');
+      return r;
+    } });
+    const siwc = createSiwcTokenStore({ db, fetchImpl: f });
+    siwc.save(tokens());
+    const budget = createBudget(db, clock.now);
+    const run = createGptAdapter({ mode: () => 'siwc', siwc, apiKey: () => null, budget, fetchImpl: f });
+    expect(budget.usage().gptWindow).toBeNull();
+    await collect(run(req(), 'gpt-6-luna'));
+    expect(budget.usage().gptWindow).toEqual({ usedPct: 37, windowMinutes: 300, resetAt: clock.now() + 3600_000, at: clock.now() });
+  });
+
+  test('answers without usage headers leave it unknown', async () => {
+    const db = openDb(':memory:');
+    const f = fakeFetch({ '/v1/responses': () => textTurn('답') });
+    const siwc = createSiwcTokenStore({ db, fetchImpl: f });
+    siwc.save(tokens());
+    const budget = createBudget(db, makeClock().now);
+    await collect(createGptAdapter({ mode: () => 'siwc', siwc, apiKey: () => null, budget, fetchImpl: f })(req(), 'gpt-6-luna'));
+    expect(budget.usage().gptWindow).toBeNull();
+  });
+});

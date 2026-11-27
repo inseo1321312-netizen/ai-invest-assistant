@@ -6,7 +6,6 @@ import { parseInstrumentKey } from '../../src/market/types.js';
 import { saveHolding } from '../../src/features/holdings.js';
 import { myNews } from '../../src/features/myNews.js';
 import { chatTurn } from '../../src/features/chat.js';
-import { createBudget } from '../../src/ai/budget.js';
 import { buildApp } from '../../src/app.js';
 import { fakeKis, fakeOkx } from '../market/fakes.js';
 import { fakeRunAi } from '../ai/fakeRunAi.js';
@@ -45,16 +44,6 @@ test('chat thinking depth sets how hard the AI thinks', async () => {
   for await (const _ of chatTurn(deps, { chatId: null, key: null, provider: 'gpt', text: '깊게', depth: 'deep' })) { /* 끝까지 */ }
   for await (const _ of chatTurn(deps, { chatId: null, key: null, provider: 'gpt', text: '보통' })) { /* 끝까지 */ }
   expect(ai.requests.map((r) => r.tier)).toEqual(['deep', 'standard']);
-});
-
-test('a ChatGPT usage-limit hit remembers how many requests fit in 5 hours', () => {
-  const db = openDb(':memory:');
-  const clock = makeClock();
-  const b = createBudget(db, clock.now);
-  for (let i = 0; i < 7; i++) b.record('interactive', 'gpt', 0);
-  expect(b.usage().gptCapEstimate).toBeNull();
-  b.noteLimitHit('gpt');
-  expect(b.usage().gptCapEstimate).toBe(7);
 });
 
 test('one conversation can be deleted; ready says which AI can answer', async () => {

@@ -31,16 +31,14 @@ interface Usage {
   limits: { interactiveDailyUsd: number; monthlyUsd: number; scheduledDailyUsd: number };
   requests?: { gpt5h: number; gptToday: number; claudeToday: number };
   gptLimitHitAt?: number | null;
-  /** ChatGPT 구독이 한도에 걸렸을 때의 5시간 요청 수(없으면 기본 추정) */
-  gptCapEstimate?: number | null;
+  /** ChatGPT가 답과 함께 알려 준 실제 5시간 사용률(없으면 모름) */
+  gptWindow?: { usedPct: number; windowMinutes: number | null; resetAt: number | null; at: number } | null;
 }
 interface ChatItem { id: number; key: string | null; title: string; createdAt: number }
 type Depth = 'light' | 'standard' | 'deep';
 
 const SUGGESTIONS = ['오늘 시장 분위기 어때?', '이 종목 언제 사는 게 좋을까?', '최근 뉴스 요약해 줘', '삼성전자 10주 있어'];
 const DEPTHS: { value: Depth; label: string }[] = [{ value: 'light', label: '빠르게' }, { value: 'standard', label: '보통' }, { value: 'deep', label: '깊게' }];
-/** ChatGPT 구독 5시간 한도를 아직 모를 때 쓰는 추정 횟수 */
-const DEFAULT_GPT_CAP = 50;
 let seq = 0;
 
 interface Pref { provider: ProviderId; model: Record<ProviderId, string | null>; depth: Depth }
@@ -77,11 +75,24 @@ function Ring({ pct }: { pct: number }) {
   );
 }
 
-/** 지금 고른 AI 기준 사용량(%). API는 오늘 한도 대비 금액, ChatGPT 구독은 5시간 요청 수 */
-function usageNow(u: Usage, provider: ProviderId, gptMode: 'siwc' | 'apikey'): { pct: number; label: string } {
+/** ChatGPT 구독의 실제 5시간 사용률(창이 지났으면 모름) */
+function gptWindowPct(u: Usage): number | null {
+  const w = u.gptWindow;
+  if (!w) return null;
+  const end = w.resetAt ?? w.at + (w.windowMinutes ?? 300) * 60_000;
+  return end > Date.now() ? w.usedPct : null;
+}
+
+/**
+ * 지금 고른 AI 기준 사용량. API는 오늘 한도 대비 금액(%).
+ * ChatGPT 구독은 ChatGPT가 알려 준 실제 %만 쓰고, 모르면 숫자를 지어내지 않고 여유/한도만 보여준다.
+ */
+function usageNow(u: Usage, provider: ProviderId, gptMode: 'siwc' | 'apikey'): { pct: number | null; label: string } {
   if (provider === 'gpt' && gptMode === 'siwc') {
-    const cap = u.gptCapEstimate || DEFAULT_GPT_CAP;
-    return { pct: ((u.requests?.gpt5h ?? 0) / cap) * 100, label: '5시간' };
+    const real = gptWindowPct(u);
+    if (real !== null) return { pct: real, label: '5시간' };
+    const hit = u.gptLimitHitAt && Date.now() - u.gptLimitHitAt < 5 * 3600_000;
+    return hit ? { pct: 100, label: '한도' } : { pct: null, label: '여유' };
   }
   return { pct: (u.today.interactive / Math.max(u.limits.interactiveDailyUsd, 0.01)) * 100, label: '오늘' };
 }
@@ -122,7 +133,7 @@ function ModelSheet({ models, provider, model, onPick, onClose }: {
 
 function UsageSheet({ usage, onClose }: { usage: Usage | null; onClose: () => void }) {
   const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
-  const cap = usage?.gptCapEstimate || DEFAULT_GPT_CAP;
+  const real = usage ? gptWindowPct(usage) : null;
   return (
     <Sheet title="사용량" onClose={onClose}>
       {!usage && <p className="status"><Dots /> 불러오는 중…</p>}
@@ -132,8 +143,9 @@ function UsageSheet({ usage, onClose }: { usage: Usage | null; onClose: () => vo
           <Bar label="오늘" value={`${usd(usage.today.interactive)} / ${usd(usage.limits.interactiveDailyUsd)}`} pct={pct(usage.today.interactive, usage.limits.interactiveDailyUsd)} />
           <Bar label="이번 달" value={`${usd(usage.month)} / ${usd(usage.limits.monthlyUsd)}`} pct={pct(usage.month, usage.limits.monthlyUsd)} />
           <h3 className="sheet-sub">ChatGPT 구독</h3>
-          <Bar label="최근 5시간" value={`${usage.requests?.gpt5h ?? 0} / 약 ${cap}회`} pct={pct(usage.requests?.gpt5h ?? 0, cap)} />
-          <div className="kv"><span>오늘</span><span className="num">{usage.requests?.gptToday ?? 0}회</span></div>
+          {real !== null && <Bar label="5시간 사용" value={`${Math.round(real)}%`} pct={real} />}
+          <div className="kv"><span>최근 5시간 요청</span><span className="num">{usage.requests?.gpt5h ?? 0}회</span></div>
+          <div className="kv"><span>오늘 요청</span><span className="num">{usage.requests?.gptToday ?? 0}회</span></div>
           {usage.gptLimitHitAt && <p className="notice" style={{ margin: '8px 0 0' }}>마지막으로 한도에 걸린 시각: {formatDateTimeKst(Math.floor(usage.gptLimitHitAt / 1000))}</p>}
           <a className="btn btn-block" style={{ marginTop: 12 }} href="https://chatgpt.com/settings/usage" target="_blank" rel="noreferrer noopener">ChatGPT 사용량 열기</a>
         </>
@@ -317,8 +329,8 @@ export function ChatView({ keyId, onClose }: { keyId: string | null; onClose?: (
         <button type="button" className="model-btn" aria-label="AI 모델 선택" onClick={() => setSheet('model')}>
           <span className={`dot ${pref.provider}`} />{labelOf(pref.provider, modelOf(pref.provider))}<Icon.chevron />
         </button>
-        <button type="button" className={`usage-pill${now && now.pct > 80 ? ' hot' : ''}`} aria-label={now ? `사용량 ${now.label} ${Math.round(now.pct)}%` : '사용량'} onClick={() => setSheet('usage')}>
-          {now ? <><Ring pct={now.pct} /><span className="num">{now.label} {Math.round(Math.min(100, now.pct))}%</span></> : <span>사용량</span>}
+        <button type="button" className={`usage-pill${now && now.pct !== null && now.pct > 80 ? ' hot' : ''}`} aria-label={now ? `사용량 ${now.label}${now.pct !== null ? ` ${Math.round(now.pct)}%` : ''}` : '사용량'} onClick={() => setSheet('usage')}>
+          {now ? <><Ring pct={now.pct ?? 0} /><span className="num">{now.label}{now.pct !== null ? ` ${Math.round(Math.min(100, now.pct))}%` : ''}</span></> : <span>사용량</span>}
         </button>
       </div>
 

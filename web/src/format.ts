@@ -28,6 +28,32 @@ export function formatPrice(n: number, currency: Currency): string {
   return `${n.toLocaleString('en-US', opts)} USDT`;
 }
 
+/** 차트 가격 눈금: 단위 글자 없이 짧게(원은 소수 없이, 쉼표 넣기). 원화 단위면 달러·USDT도 원으로 */
+export function axisPrice(n: number, currency: Currency): string {
+  const v = currency !== 'KRW' && priceUnit === 'krw' && usdKrw ? n * usdKrw : n;
+  const won = currency === 'KRW' || (priceUnit === 'krw' && usdKrw !== null);
+  const abs = Math.abs(v);
+  if (won && abs >= 100) return Math.round(v).toLocaleString('ko-KR');
+  if (currency === 'USD' && !won) return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (abs >= 1000) return v.toLocaleString('en-US', { maximumFractionDigits: 1 });
+  if (abs >= 1) return v.toLocaleString('en-US', { maximumFractionDigits: 3 });
+  return v.toLocaleString('en-US', { maximumSignificantDigits: 4 });
+}
+
+/** 끌어 고른 구간 날짜: 일·주봉은 날짜만(해가 다르면 연도도), 분·시간봉은 시각까지(한국 시간) */
+export function rangeLabel(from: number, to: number, bar: string): string {
+  const iso = (s: number) => new Date(s * 1000 + 9 * 3600_000).toISOString();
+  const a = iso(from);
+  const b = iso(to);
+  if (bar === '1D' || bar === '1W') {
+    const withYear = a.slice(0, 4) !== b.slice(0, 4);
+    const d = (x: string) => `${withYear ? `${x.slice(2, 4)}/` : ''}${x.slice(5, 7)}/${x.slice(8, 10)}`;
+    return `${d(a)} ~ ${d(b)}`;
+  }
+  const d = (x: string) => `${x.slice(5, 7)}/${x.slice(8, 10)} ${x.slice(11, 16)}`;
+  return `${d(a)} ~ ${d(b)}`;
+}
+
 export function formatKrwApprox(n: number): string {
   const v = Math.round(n);
   if (Math.abs(v) >= 1e8) {
